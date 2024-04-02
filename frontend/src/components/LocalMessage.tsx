@@ -5,6 +5,7 @@ interface Props {
   data: string;
   timeoutID: number;
   textKey: string;
+  fadeOut: boolean;
   onInputChange: (textKey: string, data: string) => void;
 }
 
@@ -13,6 +14,7 @@ const LocalInput: React.FC<Props> = ({
   data,
   timeoutID,
   textKey,
+  fadeOut,
   onInputChange,
 }) => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -20,8 +22,14 @@ const LocalInput: React.FC<Props> = ({
   };
 
   return (
-    <div id={textKey}>
+    <div
+      className={`message external transition-opacity duration-500 ease-in-out ${
+        fadeOut ? "opacity-0" : ""
+      }`}
+      id={textKey}
+    >
       <input
+        id={textKey}
         value={data}
         onChange={handleInputChange}
         style={{

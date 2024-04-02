@@ -4,11 +4,22 @@ interface Props {
   style: React.CSSProperties;
   data: string;
   textKey: string;
+  fadeOut: boolean;
 }
 
-const ExternalMessage: React.FC<Props> = ({ style, data, textKey }) => {
+const ExternalMessage: React.FC<Props> = ({
+  style,
+  data,
+  textKey,
+  fadeOut,
+}) => {
   return (
-    <div id={textKey}>
+    <div
+      className={`message external transition-opacity duration-500 ease-in-out ${
+        fadeOut ? "opacity-0" : ""
+      }`}
+      id={textKey}
+    >
       <p
         style={{
           ...style,
@@ -18,6 +29,7 @@ const ExternalMessage: React.FC<Props> = ({ style, data, textKey }) => {
           outline: "none",
           fontFamily: "Nunito, sans-serif",
           whiteSpace: "nowrap",
+          fontSize: "0.875rem",
         }}
       >
         {data}
