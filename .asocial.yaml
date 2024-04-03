@@ -1,0 +1,8 @@
+chat:
+  http:
+    server:
+      port: "3001"
+      maxConn: 200
+  message:
+    maxNum: 5000
+    maxSizeByte: 4096

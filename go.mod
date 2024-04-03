@@ -5,7 +5,7 @@ go 1.22.1
 require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/wire v0.6.0
-	github.com/olahol/melody v1.1.4
+	github.com/olahol/melody v1.2.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.18.2
 )

@@ -76,7 +76,7 @@ const Messages: React.FC = ({}) => {
       });
     }
     console.log("Connecting to server");
-    const socket = new WebSocket("ws://localhost:5001/api/chat");
+    const socket = new WebSocket("ws://" + window.location.host + "/api/chat");
     setSocket(socket);
 
     socket.onopen = () => {

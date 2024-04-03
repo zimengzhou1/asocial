@@ -1,0 +1,47 @@
+version: "3"
+services:
+  reverse-proxy:
+    image: traefik:v2.11
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      # - --accesslog=true # output log to stdout
+      # - --tracing=true
+    ports:
+      # The HTTP port
+      - "80:80"
+      # The Web UI (enabled by --api.insecure=true)
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  frontend:
+    container_name: frontend
+    image: zimengzhou1/frontend
+    build:
+      context: ./frontend
+      dockerfile: dev.Dockerfile
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rcweb.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.rcweb.entrypoints=web"
+      - "traefik.http.routers.rcweb.service=rcweb"
+      - "traefik.http.services.rcweb.loadbalancer.server.port=3000"
+  backend:
+    container_name: backend
+    image: zimengzhou1/backend
+    command:
+      - chat
+    build:
+      context: ./
+      dockerfile: go.Dockerfile
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api/chat`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.routers.backend.service=backend"
+      - "traefik.http.services.backend.loadbalancer.server.port=3001"
+    volumes:
+      - ./.asocial.yaml:/app/.asocial.yaml
