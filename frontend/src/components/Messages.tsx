@@ -76,7 +76,12 @@ const Messages: React.FC = ({}) => {
       });
     }
     console.log("Connecting to server");
-    const socket = new WebSocket("ws://" + window.location.host + "/api/chat");
+    const socket = new WebSocket(
+      "ws://" + window.location.host + "/api/chat" + "?uid=" + localuserID
+    );
+    // const socket = new WebSocket(
+    //   "ws://localhost:3001/api/chat" + "?uid=" + localuserID
+    // );
     setSocket(socket);
 
     socket.onopen = () => {
@@ -95,38 +100,38 @@ const Messages: React.FC = ({}) => {
   }, []);
 
   const handleIncomingMessage = (data: any) => {
-    const { userID, textID, data: textData, pos } = data;
+    const { user_id, message_id, payload, position } = data;
 
     const timeoutID = window.setTimeout(
       removeInactiveComponents,
       REMOVE_DELAY,
-      textID,
-      userID
+      message_id,
+      user_id
     );
 
     setTexts((prevTexts) => {
-      if (!(textID in prevTexts)) {
+      if (!(message_id in prevTexts)) {
         const newComponent: TextComponent = {
-          key: textID,
-          user: userID,
-          data: textData,
+          key: message_id,
+          user: user_id,
+          data: payload,
           timeoutID: timeoutID,
-          posX: pos.x,
-          posY: pos.y,
+          posX: position.x,
+          posY: position.y,
           fadeOut: false,
         };
 
-        updateUserMessages(userID, textID);
-        return { ...prevTexts, [textID]: newComponent };
+        updateUserMessages(user_id, message_id);
+        return { ...prevTexts, [message_id]: newComponent };
       } else {
-        const oldTimeoutID = prevTexts[textID].timeoutID;
+        const oldTimeoutID = prevTexts[message_id].timeoutID;
         window.clearTimeout(oldTimeoutID);
         return {
           ...prevTexts,
-          [textID]: {
-            ...prevTexts[textID],
+          [message_id]: {
+            ...prevTexts[message_id],
             timeoutID: timeoutID,
-            data: textData,
+            data: payload,
           },
         };
       }
@@ -228,10 +233,11 @@ const Messages: React.FC = ({}) => {
     if (socket && texts[textKey].user === localuserID) {
       socket.send(
         JSON.stringify({
-          userID: texts[textKey].user,
-          textID: textKey,
-          data: data,
-          pos: { x: texts[textKey].posX, y: texts[textKey].posY },
+          user_id: texts[textKey].user,
+          message_id: textKey,
+          payload: data,
+          position: { x: texts[textKey].posX, y: texts[textKey].posY },
+          channel_id: "default",
         })
       );
     }
@@ -252,8 +258,8 @@ const Messages: React.FC = ({}) => {
     <div
       onClick={addLocalMessage}
       style={{
-        width: "100vw",
-        height: "100vh",
+        width: "100%",
+        height: "100%",
         position: "relative",
         display: "flex",
         justifyContent: "center",
@@ -278,7 +284,7 @@ const Messages: React.FC = ({}) => {
               style={{
                 top: `${data.posY}px`,
                 left: `${data.posX}px`,
-                position: "fixed",
+                position: "absolute",
               }}
               data={data.data}
               timeoutID={data.timeoutID}
@@ -292,7 +298,7 @@ const Messages: React.FC = ({}) => {
               style={{
                 top: `${data.posY}px`,
                 left: `${data.posX}px`,
-                position: "fixed",
+                position: "absolute",
               }}
               data={data.data}
               textKey={data.key}

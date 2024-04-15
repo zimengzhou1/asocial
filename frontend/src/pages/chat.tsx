@@ -35,7 +35,7 @@ interface UserMessages {
 
 const ChatPage: React.FC = () => {
   return (
-    <>
+    <div style={{ width: "4000px", height: "4000px", position: "relative" }}>
       <div className="fixed top-0 left-0 p-4 z-10">
         <SideMenu />
       </div>
@@ -58,7 +58,7 @@ const ChatPage: React.FC = () => {
       <Messages />
       {/* </TransformComponent>
       </TransformWrapper> */}
-    </>
+    </div>
   );
 };
 

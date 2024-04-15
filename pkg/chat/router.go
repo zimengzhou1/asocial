@@ -2,6 +2,7 @@ package chat
 
 import (
 	"asocial/pkg/common"
+	"context"
 )
 
 type Router struct {
@@ -16,4 +17,7 @@ func NewRouter(httpServer common.HttpServer) *Router {
 func (r *Router) Run() {
 	r.httpServer.RegisterRoutes()
 	r.httpServer.Run()
+}
+func (r *Router) GracefulStop(ctx context.Context) error {
+	return r.httpServer.GracefulStop(ctx)
 }

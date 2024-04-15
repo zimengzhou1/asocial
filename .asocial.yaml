@@ -6,3 +6,8 @@ chat:
   message:
     maxNum: 5000
     maxSizeByte: 4096
+  subscriber:
+    id: "rc.msg.pub"
+kafka:
+  addrs: kafka:9092
+  version: "1.0.0" #"3.0.1"

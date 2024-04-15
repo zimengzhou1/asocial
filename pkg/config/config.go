@@ -6,6 +6,7 @@ import (
 
 type Config struct {
 	Chat          *ChatConfig          `mapstructure:"chat"`
+	Kafka 			 *KafkaConfig         `mapstructure:"kafka"`
 }
 
 type ChatConfig struct {
@@ -15,10 +16,18 @@ type ChatConfig struct {
 			MaxConn int64
 		}
 	}
+	Subscriber struct {
+		Id string
+	}
 	Message struct {
 		MaxNum        int64
 		MaxSizeByte   int64
 	}
+}
+
+type KafkaConfig struct {
+	Addrs   string
+	Version string
 }
 
 func setDefault() {
@@ -27,6 +36,11 @@ func setDefault() {
 
 	viper.SetDefault("chat.message.maxNum", 5000)
 	viper.SetDefault("chat.message.maxSizeByte", 4096)
+
+	viper.SetDefault("kafka.addrs", "kafka:9092")
+	viper.SetDefault("kafka.version", "1.0.0")
+	viper.SetDefault("chat.subscriber.id", "rc.msg.pub")
+	//viper.SetDefault("chat.subscriber.id", "rc.msg."+os.Getenv("HOSTNAME"))
 }
 
 func NewConfig() (*Config, error) {
