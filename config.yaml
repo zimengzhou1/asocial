@@ -1,0 +1,10 @@
+server:
+  port: "3001"
+  max_connections: 200
+  max_message_size: 4096
+
+redis:
+  addr: "redis:6379"  # Use "localhost:6379" for local development
+  password: ""
+  db: 0
+  channel: "chat:messages"

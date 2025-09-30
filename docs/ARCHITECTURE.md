@@ -4,12 +4,34 @@
 
 ---
 
+## 🚀 Current Implementation Status
+
+**Phase 1 Complete** (Backend Refactor with Redis)
+
+✅ **Implemented:**
+- Clean architecture with domain/service/handler layers
+- Redis pub/sub for real-time messaging (replaced Kafka)
+- WebSocket handler with Melody
+- Health check endpoints (`/health`, `/ready`)
+- Structured logging with Go's slog
+- Manual dependency injection
+- Docker Compose with Traefik, Redis, Backend, Frontend
+
+📋 **Next Phases:**
+- Phase 2: Kubernetes deployment (manifests, ConfigMaps, Services)
+- Phase 3: Re-add authentication (Firebase/NextAuth)
+- Phase 4: Observability (Prometheus, Grafana)
+- Phase 5: Production hardening
+
+---
+
 ## Table of Contents
 
+- [Current Implementation Status](#-current-implementation-status)
 - [System Architecture](#system-architecture)
 - [Technology Stack](#technology-stack)
 - [Architecture Decisions](#architecture-decisions)
-- [Clean Architecture Pattern](#clean-architecture-pattern)
+- [Current Implementation](#current-implementation)
 - [Kubernetes-Native Features](#kubernetes-native-features)
 
 ---
@@ -194,19 +216,19 @@ User A                 Frontend Pod              Backend Pod             Redis  
 
 ### Backend (Go)
 
-| Component                | Technology               | Purpose                                  | Version |
-| ------------------------ | ------------------------ | ---------------------------------------- | ------- |
-| **HTTP Framework**       | Gin                      | Fast HTTP router, middleware support     | v1.9+   |
-| **WebSocket**            | Melody                   | WebSocket library built on Gorilla       | v1.2+   |
-| **Pub/Sub**              | go-redis/redis/v9        | Redis client with pub/sub support        | v9.0+   |
-| **Config**               | Viper                    | Configuration management                 | v1.18+  |
-| **Logging**              | slog                     | Structured logging (Go 1.21+)            | stdlib  |
-| **Metrics**              | prometheus/client_golang | Prometheus metrics exporter              | v1.19+  |
-| **Dependency Injection** | Wire                     | Compile-time DI (optional, can refactor) | v0.6+   |
-| **Testing**              | testify                  | Assertions and mocking                   | v1.9+   |
-| **Mocking**              | gomock                   | Mock generation                          | v1.6+   |
-| **Validation**           | go-playground/validator  | Struct validation                        | v10.19+ |
-| **UUID**                 | google/uuid              | Unique ID generation                     | v1.6+   |
+| Component                | Technology               | Purpose                                  | Version | Status |
+| ------------------------ | ------------------------ | ---------------------------------------- | ------- | ------ |
+| **HTTP Framework**       | Gin                      | Fast HTTP router, middleware support     | v1.9+   | ✅ |
+| **WebSocket**            | Melody                   | WebSocket library built on Gorilla       | v1.2+   | ✅ |
+| **Pub/Sub**              | go-redis/redis/v9        | Redis client with pub/sub support        | v9.14+  | ✅ |
+| **Config**               | Viper                    | Configuration management                 | v1.18+  | ✅ |
+| **Logging**              | slog                     | Structured logging (Go 1.21+)            | stdlib  | ✅ |
+| **Dependency Injection** | Manual                   | Constructor-based DI (removed Wire)      | -       | ✅ |
+| **UUID**                 | google/uuid              | Unique ID generation                     | v1.6+   | ✅ |
+| **Metrics**              | prometheus/client_golang | Prometheus metrics exporter              | v1.19+  | 📋 Phase 4 |
+| **Testing**              | testify                  | Assertions and mocking                   | v1.9+   | 📋 Future |
+| **Mocking**              | gomock                   | Mock generation                          | v1.6+   | 📋 Future |
+| **Validation**           | go-playground/validator  | Struct validation                        | v10.19+ | 📋 Future |
 
 ### Frontend (Next.js)
 
@@ -358,105 +380,122 @@ Infrastructure Layer (External Systems)
 
 ---
 
-## Clean Architecture Pattern
+## Current Implementation
 
-### Directory Structure
+### Actual Directory Structure (Phase 1)
 
 ```
-backend/
+asocial/
 ├── cmd/
 │   └── server/
-│       └── main.go                    # Application entry point
+│       └── main.go                    # ✅ Application entry point, manual DI
 │
-├── internal/                          # Private application code
+├── internal/                          # ✅ Private application code
 │   │
-│   ├── domain/                        # Business entities (models)
-│   │   ├── message.go                 # Message entity
-│   │   ├── user.go                    # User entity
-│   │   ├── channel.go                 # Channel entity
+│   ├── domain/                        # ✅ Business entities
+│   │   ├── message.go                 # Message entity with Position
 │   │   └── errors.go                  # Domain-specific errors
 │   │
-│   ├── service/                       # Business logic layer
-│   │   ├── message_service.go         # Message business logic
-│   │   │   • CreateMessage()
-│   │   │   • ValidateMessage()
-│   │   │   • BroadcastMessage()
-│   │   ├── user_service.go            # User management
-│   │   └── rate_limiter.go            # Rate limiting logic
+│   ├── service/                       # ✅ Business logic layer
+│   │   └── message_service.go         # Message publishing & broadcasting
 │   │
-│   ├── repository/                    # Data access layer
-│   │   ├── interface.go               # Repository interfaces
-│   │   ├── redis_repository.go        # Redis implementation
-│   │   │   • SaveSession()
-│   │   │   • GetSession()
-│   │   │   • IncrementRateLimit()
-│   │   └── memory_repository.go       # In-memory (for testing)
+│   ├── pubsub/                        # ✅ Pub/Sub abstraction
+│   │   └── redis_pubsub.go            # Redis pub/sub implementation
 │   │
-│   ├── pubsub/                        # Pub/Sub abstraction
-│   │   ├── interface.go               # PubSub interface
-│   │   ├── redis_pubsub.go            # Redis pub/sub implementation
-│   │   │   • Publish()
-│   │   │   • Subscribe()
-│   │   │   • HandleReconnect()
-│   │   └── memory_pubsub.go           # In-memory (for testing)
+│   ├── handler/                       # ✅ HTTP/WebSocket handlers
+│   │   ├── websocket.go               # WebSocket upgrade & message handling
+│   │   └── health.go                  # Health check endpoints
 │   │
-│   ├── handler/                       # HTTP/WebSocket handlers (thin layer)
-│   │   ├── websocket_handler.go       # WebSocket connection handling
-│   │   │   • HandleConnect()
-│   │   │   • HandleMessage()
-│   │   │   • HandleDisconnect()
-│   │   ├── health_handler.go          # Health check endpoints
-│   │   │   • GET /health (liveness)
-│   │   │   • GET /ready (readiness)
-│   │   ├── metrics_handler.go         # Prometheus metrics endpoint
-│   │   │   • GET /metrics
-│   │   └── api_handler.go             # REST API (if needed)
-│   │
-│   ├── middleware/                    # HTTP middleware
-│   │   ├── auth.go                    # JWT validation
-│   │   ├── logging.go                 # Request logging
-│   │   ├── metrics.go                 # Metrics collection
-│   │   ├── cors.go                    # CORS headers
-│   │   └── recovery.go                # Panic recovery
-│   │
-│   └── config/                        # Configuration structs
-│       ├── config.go                  # Config struct definitions
-│       └── validator.go               # Config validation
+│   └── config/                        # ✅ Configuration management
+│       └── config.go                  # Viper-based config loader
 │
-├── pkg/                               # Public libraries (reusable)
-│   ├── logger/
-│   │   └── logger.go                  # Structured logging setup
-│   ├── validator/
-│   │   └── validator.go               # Input validation utilities
-│   └── tracing/
-│       └── trace.go                   # Correlation ID generation
+├── frontend/                          # ✅ Next.js application
+│   ├── src/
+│   │   ├── app/                       # App router pages
+│   │   ├── components/                # React components
+│   │   └── lib/                       # Utilities
+│   ├── public/
+│   ├── package.json
+│   └── tsconfig.json
 │
-├── tests/
-│   ├── unit/                          # Unit tests (per package)
-│   │   ├── service_test.go
-│   │   ├── repository_test.go
-│   │   └── handler_test.go
-│   ├── integration/                   # Integration tests
-│   │   ├── redis_test.go              # Test with real Redis
-│   │   └── websocket_test.go          # Test WebSocket flow
-│   └── e2e/                           # End-to-end tests
-│       └── chat_test.go               # Full user flow
+├── docs/                              # ✅ Documentation
+│   ├── ARCHITECTURE.md                # This file
+│   ├── OLD_ARCHITECTURE.md            # Legacy system docs
+│   └── PLANNING.md                    # Implementation phases
 │
-├── scripts/
-│   ├── generate-mocks.sh              # Generate gomock mocks
-│   └── run-tests.sh                   # Run all tests with coverage
-│
-├── config/
-│   ├── config.yaml                    # Default config
-│   ├── config.dev.yaml                # Development overrides
-│   └── config.prod.yaml               # Production overrides
-│
-├── Dockerfile                         # Multi-stage production build
-├── Dockerfile.dev                     # Development hot-reload
-├── go.mod
+├── config.yaml                        # ✅ Application configuration
+├── docker-compose.yml                 # ✅ Local development stack
+├── go.Dockerfile                      # ✅ Backend container
+├── go.mod                             # ✅ Go dependencies
 ├── go.sum
-├── Makefile                           # Common tasks
+├── main.go                            # ✅ Entry point
 └── README.md
+```
+
+### Implemented Components
+
+**Backend (`internal/`):**
+
+1. **Domain Layer** (`internal/domain/`)
+   - `Message` struct with MessageID, ChannelID, UserID, Payload, Position, Timestamp
+   - `Position` struct with X, Y coordinates
+   - JSON encoding/decoding methods
+   - Domain errors
+
+2. **Service Layer** (`internal/service/`)
+   - `MessageService`: Publishes messages, starts subscriber, broadcasts to WebSocket clients
+   - Filters broadcasts by channel and excludes sender
+
+3. **PubSub Layer** (`internal/pubsub/`)
+   - `RedisPubSub`: Redis client wrapper with pub/sub operations
+   - Connection health checking
+   - Structured logging
+
+4. **Handler Layer** (`internal/handler/`)
+   - `WebSocketHandler`: Manages WebSocket connections, handles messages
+   - `HealthHandler`: Liveness (`/health`) and readiness (`/ready`) probes
+
+5. **Config Layer** (`internal/config/`)
+   - Viper-based configuration loading from YAML
+   - Environment variable overrides
+   - Validation and defaults
+
+**Routes:**
+- `GET /health` - Liveness probe (always returns 200)
+- `GET /ready` - Readiness probe (checks Redis connection)
+- `GET /api/chat` - WebSocket upgrade endpoint
+
+### Planned Directory Structure (Future Phases)
+
+```
+asocial/
+├── internal/
+│   ├── middleware/                    # 📋 Phase 3: Auth, logging, metrics
+│   ├── repository/                    # 📋 Future: If we need persistent storage
+│   └── metrics/                       # 📋 Phase 4: Prometheus metrics
+│
+├── pkg/                               # 📋 Future: Reusable libraries
+│   ├── logger/
+│   └── validator/
+│
+├── tests/                             # 📋 Future: Comprehensive test suite
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+│
+├── k8s/                               # 📋 Phase 2: Kubernetes manifests
+│   ├── base/
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   ├── configmap.yaml
+│   │   └── ingress.yaml
+│   └── overlays/
+│       ├── dev/
+│       └── prod/
+│
+└── scripts/                           # 📋 Future: Automation scripts
+    ├── deploy.sh
+    └── test.sh
 ```
 
 ### Layer Dependencies

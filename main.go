@@ -1,7 +1,7 @@
 package main
 
-import "asocial/cmd"
+import "asocial/cmd/server"
 
 func main() {
-	cmd.Execute()
+	server.Run()
 }
