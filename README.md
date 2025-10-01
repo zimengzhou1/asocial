@@ -4,7 +4,7 @@
 
 ## Overview
 
-Asocial is a full-stack web application demonstrating real-time communication using WebSockets, clean architecture patterns, and modern cloud-native design principles. Built with Go and Next.js, it showcases production-ready development practices including Docker containerization, structured logging, health checks, and comprehensive testing.
+Asocial is a full-stack web application demonstrating real-time communication using WebSockets, user presence tracking, clean architecture patterns, and modern cloud-native design principles. Built with Go and Next.js, it showcases production-ready development practices including Docker containerization, Redis-based presence tracking with TTL, Zustand state management, structured logging, health checks, and comprehensive testing.
 
 ## Technology Stack
 
@@ -19,16 +19,18 @@ Asocial is a full-stack web application demonstrating real-time communication us
 
 ### Frontend
 
-- **Framework**: Next.js 14
+- **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
+- **State Management**: Zustand
 - **Styling**: TailwindCSS
-- **Real-time**: Native WebSocket API
+- **Gestures**: @use-gesture/react
+- **Real-time**: Native WebSocket API with custom hook
 
 ### Infrastructure
 
 - **Containerization**: Docker & Docker Compose
 - **Reverse Proxy**: Traefik
-- **Cache/Pub-Sub**: Redis 7
+- **Cache/Pub-Sub/Presence**: Redis 7 (Pub/Sub + Sets with TTL)
 - **Orchestration** (planned): Kubernetes
 
 ## Architecture
@@ -147,19 +149,27 @@ ws.send(JSON.stringify(message));
 
 ```typescript
 interface Message {
-  message_id: string; // Unique message identifier
+  type: "chat" | "user_joined" | "user_left" | "user_sync"; // Message type
+  message_id?: string; // Unique message identifier (chat only)
   channel_id: string; // Channel name
   user_id: string; // Sender user ID
-  payload: string; // Message content
-  position: Position; // Canvas position
+  payload?: string; // Message content (chat only)
+  position?: Position; // Canvas position (chat only)
+  users?: string[]; // User list (user_sync only)
   timestamp: number; // Unix timestamp (milliseconds)
 }
 
 interface Position {
-  x: number; // X coordinate on canvas
-  y: number; // Y coordinate on canvas
+  x: number; // X coordinate on canvas (float for sub-pixel precision)
+  y: number; // Y coordinate on canvas (float for sub-pixel precision)
 }
 ```
+
+**Message Types:**
+- `chat`: User-sent chat message with content and position
+- `user_joined`: Broadcast when a user connects (presence event)
+- `user_left`: Broadcast when a user disconnects (presence event)
+- `user_sync`: Sent to new users with current channel user list
 
 ### Health Check Endpoints
 
@@ -237,12 +247,19 @@ make test-coverage
 asocial/
 ├── cmd/server/           # Application entry point
 ├── internal/
-│   ├── domain/           # Business entities
-│   ├── service/          # Business logic
-│   ├── pubsub/           # Redis pub/sub client
-│   ├── handler/          # HTTP/WebSocket handlers
+│   ├── domain/           # Business entities (Message, Position, MessageType)
+│   ├── service/          # Business logic (MessageService)
+│   ├── pubsub/           # Redis pub/sub + presence tracking
+│   ├── handler/          # HTTP/WebSocket handlers + presence lifecycle
 │   └── config/           # Configuration loader
 ├── frontend/             # Next.js application
+│   ├── src/
+│   │   ├── app/          # Next.js 14 app router pages
+│   │   ├── components/   # React components (Canvas, Messages, Layout)
+│   │   ├── hooks/        # Custom hooks (useWebSocket)
+│   │   └── stores/       # Zustand state management (chatStore)
+│   ├── public/           # Static assets
+│   └── package.json
 ├── tests/
 │   └── integration/      # Integration tests
 ├── docs/                 # Documentation
@@ -255,6 +272,9 @@ asocial/
 ## Features
 
 - ✅ Real-time bidirectional communication via WebSockets
+- ✅ **User presence tracking with TTL-based cleanup**
+- ✅ **Real-time user join/leave notifications**
+- ✅ **Frontend state management with Zustand**
 - ✅ Multi-channel support
 - ✅ Scalable pub/sub architecture with Redis
 - ✅ Clean architecture with separation of concerns
@@ -262,7 +282,8 @@ asocial/
 - ✅ Health check endpoints for Kubernetes
 - ✅ Graceful shutdown handling
 - ✅ Docker containerization
-- ✅ Comprehensive test coverage
+- ✅ Sub-pixel precision canvas positioning
+- ✅ Pan/zoom/pinch gestures
 - ✅ Type-safe TypeScript frontend
 
 ## Roadmap

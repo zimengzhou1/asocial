@@ -6,18 +6,23 @@
 
 ## 🚀 Current Implementation Status
 
-**Phase 1 Complete** (Backend Refactor with Redis)
+**Phase 1 Complete** (Backend Refactor with Redis + User Presence)
 
 ✅ **Implemented:**
+
 - Clean architecture with domain/service/handler layers
 - Redis pub/sub for real-time messaging (replaced Kafka)
+- **User presence tracking with Redis (TTL-based with heartbeat)**
+- **Frontend state management with Zustand**
 - WebSocket handler with Melody
 - Health check endpoints (`/health`, `/ready`)
 - Structured logging with Go's slog
 - Manual dependency injection
 - Docker Compose with Traefik, Redis, Backend, Frontend
+- **Multi-message type support (chat, presence events, user sync)**
 
 📋 **Next Phases:**
+
 - Phase 2: Kubernetes deployment (manifests, ConfigMaps, Services)
 - Phase 3: Re-add authentication (Firebase/NextAuth)
 - Phase 4: Observability (Prometheus, Grafana)
@@ -85,6 +90,7 @@
 │                                   │   ┌──────────────────────────┐ │   │
 │                                   │   │ Redis 7.x                │ │   │
 │                                   │   │ • Pub/Sub (messages)     │ │   │
+│                                   │   │ • Presence (TTL + Sets)  │ │   │
 │                                   │   │ • Cache (sessions)       │ │   │
 │                                   │   │ • Rate limiting counters │ │   │
 │                                   │   └──────────────────────────┘ │   │
@@ -145,6 +151,57 @@ User A                 Frontend Pod              Backend Pod             Redis  
   │                        │                          │                    │                   │                      │  8. Fade after 5s    │
   │                        │                          │                    │                   │                      ├─────────────────────▶│
 ```
+
+### User Presence Flow
+
+```
+User A                 Frontend Pod              Backend Pod             Redis            Backend Pod           Frontend Pod              User B
+  │                        │                          │                    │                   │                      │                      │
+  │  1. Open Browser       │                          │                    │                   │                      │                      │
+  ├───────────────────────▶│                          │                    │                   │                      │                      │
+  │                        │                          │                    │                   │                      │                      │
+  │                        │  2. WebSocket Connect    │                    │                   │                      │                      │
+  │                        ├─────────────────────────▶│                    │                   │                      │                      │
+  │                        │                          │                    │                   │                      │                      │
+  │                        │                          │  3. SADD user A    │                   │                      │                      │
+  │                        │                          │     + Set 5min TTL │                   │                      │                      │
+  │                        │                          ├───────────────────▶│                   │                      │                      │
+  │                        │                          │                    │                   │                      │                      │
+  │                        │  4. user_sync msg        │  5. SMEMBERS users │                   │                      │                      │
+  │                        │◀─────────────────────────┤◀───────────────────┤                   │                      │                      │
+  │                        │  {users: [A]}            │  returns [A]       │                   │                      │                      │
+  │                        │                          │                    │                   │                      │                      │
+  │                        │                          │  6. PUBLISH        │                   │                      │                      │
+  │                        │                          │  user_joined(A)    │                   │                      │                      │
+  │                        │                          ├───────────────────▶│  7. SUBSCRIBE     │                      │                      │
+  │                        │                          │                    ├──────────────────▶│                      │                      │
+  │                        │                          │                    │                   │  8. user_joined(A)   │                      │
+  │                        │                          │                    │                   ├─────────────────────▶│                      │
+  │                        │                          │                    │                   │                      │  9. Show count: 1    │
+  │                        │                          │                    │                   │                      ├─────────────────────▶│
+  │                        │                          │                    │                   │                      │                      │
+  │  [60s heartbeat loop]  │                          │  10. EXPIRE user A │                   │                      │                      │
+  │                        │                          │      refresh 5min  │                   │                      │                      │
+  │                        │                          ├───────────────────▶│                   │                      │                      │
+  │                        │                          │                    │                   │                      │                      │
+  │  Close Browser         │                          │  11. SREM user A   │                   │                      │                      │
+  ├───────────────────────▶│   WebSocket Close        │      DEL TTL key   │                   │                      │                      │
+  │                        ├─────────────────────────▶├───────────────────▶│                   │                      │                      │
+  │                        │                          │                    │                   │                      │                      │
+  │                        │                          │  12. PUBLISH       │                   │                      │                      │
+  │                        │                          │  user_left(A)      │  13. user_left(A) │                      │                      │
+  │                        │                          ├───────────────────▶├──────────────────▶│  14. user_left(A)    │                      │
+  │                        │                          │                    │                   ├─────────────────────▶│  15. Show count: 0   │
+  │                        │                          │                    │                   │                      ├─────────────────────▶│
+```
+
+**Key Features:**
+
+- **TTL-based cleanup**: Users auto-removed after 5 minutes of inactivity
+- **Heartbeat**: Every 60 seconds, backend refreshes user TTL
+- **Initial sync**: New users receive complete user list immediately
+- **Real-time events**: Join/leave events broadcasted to all users in channel
+- **Per-user goroutines**: Each connection has dedicated heartbeat goroutine
 
 ### Component Interactions
 
@@ -216,32 +273,34 @@ User A                 Frontend Pod              Backend Pod             Redis  
 
 ### Backend (Go)
 
-| Component                | Technology               | Purpose                                  | Version | Status |
-| ------------------------ | ------------------------ | ---------------------------------------- | ------- | ------ |
-| **HTTP Framework**       | Gin                      | Fast HTTP router, middleware support     | v1.9+   | ✅ |
-| **WebSocket**            | Melody                   | WebSocket library built on Gorilla       | v1.2+   | ✅ |
-| **Pub/Sub**              | go-redis/redis/v9        | Redis client with pub/sub support        | v9.14+  | ✅ |
-| **Config**               | Viper                    | Configuration management                 | v1.18+  | ✅ |
-| **Logging**              | slog                     | Structured logging (Go 1.21+)            | stdlib  | ✅ |
-| **Dependency Injection** | Manual                   | Constructor-based DI (removed Wire)      | -       | ✅ |
-| **UUID**                 | google/uuid              | Unique ID generation                     | v1.6+   | ✅ |
-| **Metrics**              | prometheus/client_golang | Prometheus metrics exporter              | v1.19+  | 📋 Phase 4 |
-| **Testing**              | testify                  | Assertions and mocking                   | v1.9+   | 📋 Future |
-| **Mocking**              | gomock                   | Mock generation                          | v1.6+   | 📋 Future |
-| **Validation**           | go-playground/validator  | Struct validation                        | v10.19+ | 📋 Future |
+| Component                | Technology               | Purpose                              | Version | Status     |
+| ------------------------ | ------------------------ | ------------------------------------ | ------- | ---------- |
+| **HTTP Framework**       | Gin                      | Fast HTTP router, middleware support | v1.9+   | ✅         |
+| **WebSocket**            | Melody                   | WebSocket library built on Gorilla   | v1.2+   | ✅         |
+| **Pub/Sub**              | go-redis/redis/v9        | Redis client with pub/sub support    | v9.14+  | ✅         |
+| **Config**               | Viper                    | Configuration management             | v1.18+  | ✅         |
+| **Logging**              | slog                     | Structured logging (Go 1.21+)        | stdlib  | ✅         |
+| **Dependency Injection** | Manual                   | Constructor-based DI (removed Wire)  | -       | ✅         |
+| **UUID**                 | google/uuid              | Unique ID generation                 | v1.6+   | ✅         |
+| **Metrics**              | prometheus/client_golang | Prometheus metrics exporter          | v1.19+  | 📋 Phase 4 |
+| **Testing**              | testify                  | Assertions and mocking               | v1.9+   | 📋 Future  |
+| **Mocking**              | gomock                   | Mock generation                      | v1.6+   | 📋 Future  |
+| **Validation**           | go-playground/validator  | Struct validation                    | v10.19+ | 📋 Future  |
 
 ### Frontend (Next.js)
 
-| Component      | Technology           | Purpose                  | Version |
-| -------------- | -------------------- | ------------------------ | ------- |
-| **Framework**  | Next.js              | React framework with SSR | v14.1+  |
-| **Language**   | TypeScript           | Type safety              | v5.0+   |
-| **UI Library** | React                | UI components            | v18.0+  |
-| **Styling**    | TailwindCSS          | Utility-first CSS        | v3.3+   |
-| **Canvas**     | react-zoom-pan-pinch | Pan/zoom functionality   | v3.4+   |
-| **Auth**       | NextAuth.js          | Authentication           | v5.0+   |
-| **Firebase**   | Firebase SDK         | User authentication      | v10.11+ |
-| **WebSocket**  | native WebSocket API | Real-time communication  | -       |
+| Component        | Technology           | Purpose                         | Version | Status |
+| ---------------- | -------------------- | ------------------------------- | ------- | ------ |
+| **Framework**    | Next.js              | React framework with SSR        | v14.1+  | ✅     |
+| **Language**     | TypeScript           | Type safety                     | v5.0+   | ✅     |
+| **UI Library**   | React                | UI components                   | v18.0+  | ✅     |
+| **State**        | Zustand              | Lightweight state management    | v4.5+   | ✅     |
+| **Styling**      | TailwindCSS          | Utility-first CSS               | v3.3+   | ✅     |
+| **Canvas**       | @use-gesture/react   | Pan/zoom/pinch gestures         | v10.3+  | ✅     |
+| **Auth**         | NextAuth.js          | Authentication                  | v5.0+   | 📋     |
+| **Firebase**     | Firebase SDK         | User authentication             | v10.11+ | 📋     |
+| **WebSocket**    | native WebSocket API | Real-time communication         | -       | ✅     |
+| **Custom Hooks** | useWebSocket         | WebSocket connection management | -       | ✅     |
 
 ### Infrastructure
 
@@ -261,11 +320,12 @@ User A                 Frontend Pod              Backend Pod             Redis  
 
 ### Database/Cache
 
-| Component       | Technology    | Purpose                        |
-| --------------- | ------------- | ------------------------------ |
-| **Pub/Sub**     | Redis Pub/Sub | Real-time message broadcasting |
-| **Cache**       | Redis         | Session storage, rate limiting |
-| **Persistence** | Redis RDB/AOF | Optional message persistence   |
+| Component       | Technology    | Purpose                         |
+| --------------- | ------------- | ------------------------------- |
+| **Pub/Sub**     | Redis Pub/Sub | Real-time message broadcasting  |
+| **Presence**    | Redis Sets    | User presence tracking with TTL |
+| **Cache**       | Redis         | Session storage, rate limiting  |
+| **Persistence** | Redis RDB/AOF | Optional message persistence    |
 
 ---
 
@@ -437,22 +497,35 @@ asocial/
 **Backend (`internal/`):**
 
 1. **Domain Layer** (`internal/domain/`)
-   - `Message` struct with MessageID, ChannelID, UserID, Payload, Position, Timestamp
-   - `Position` struct with X, Y coordinates
+
+   - `Message` struct with Type, MessageID, ChannelID, UserID, Payload, Position, Users, Timestamp
+   - `MessageType` enum: `chat`, `user_joined`, `user_left`, `user_sync`
+   - `Position` struct with X, Y coordinates (float64 for sub-pixel precision)
+   - Helper functions: `NewMessage`, `NewUserJoinedMessage`, `NewUserLeftMessage`, `NewUserSyncMessage`
    - JSON encoding/decoding methods
    - Domain errors
 
 2. **Service Layer** (`internal/service/`)
+
    - `MessageService`: Publishes messages, starts subscriber, broadcasts to WebSocket clients
-   - Filters broadcasts by channel and excludes sender
+   - `PubSubClient` interface with presence operations
+   - Filters broadcasts by channel and message type (excludes sender for chat, includes all for presence)
+   - UUID generation for message IDs
 
 3. **PubSub Layer** (`internal/pubsub/`)
-   - `RedisPubSub`: Redis client wrapper with pub/sub operations
+
+   - `RedisPubSub`: Redis client wrapper with pub/sub and presence operations
+   - Presence tracking: `AddUserToChannel`, `RemoveUserFromChannel`, `RefreshUserPresence`, `GetChannelUsers`
+   - TTL-based cleanup (5-minute expiry)
    - Connection health checking
    - Structured logging
 
 4. **Handler Layer** (`internal/handler/`)
-   - `WebSocketHandler`: Manages WebSocket connections, handles messages
+
+   - `WebSocketHandler`: Manages WebSocket connections, handles messages, presence lifecycle
+   - User connect: Add to Redis set, send user sync, publish join event, start heartbeat
+   - User disconnect: Remove from Redis set, publish leave event
+   - Heartbeat goroutine (60s interval) refreshes user presence TTL
    - `HealthHandler`: Liveness (`/health`) and readiness (`/ready`) probes
 
 5. **Config Layer** (`internal/config/`)
@@ -460,10 +533,32 @@ asocial/
    - Environment variable overrides
    - Validation and defaults
 
+**Frontend (`frontend/src/`):**
+
+1. **State Management** (`src/stores/`)
+
+   - `chatStore` (Zustand): Manages messages, users, viewport state
+   - Actions: `addMessage`, `updateMessage`, `removeMessage`, `fadeOutMessage`, `addUser`, `removeUser`, `setViewport`
+   - Auto-generates user colors from user IDs
+   - Automatic message fade-out after 5 seconds
+
+2. **Custom Hooks** (`src/hooks/`)
+
+   - `useWebSocket`: WebSocket connection management with reconnection logic
+   - Handles multiple message types: chat, user_joined, user_left, user_sync
+   - Uses refs to prevent unnecessary re-renders
+   - Connection state tracking
+
+3. **Components** (`src/components/`)
+   - `Canvas/CanvasViewport`: Pan/zoom/pinch gestures with proper coordinate transformation
+   - `Messages`: Renders chat messages at canvas positions
+   - `Layout/ChatLayout`: App layout with user count display
+
 **Routes:**
+
 - `GET /health` - Liveness probe (always returns 200)
 - `GET /ready` - Readiness probe (checks Redis connection)
-- `GET /api/chat` - WebSocket upgrade endpoint
+- `GET /api/chat?uid={user_id}` - WebSocket upgrade endpoint with user ID
 
 ### Planned Directory Structure (Future Phases)
 

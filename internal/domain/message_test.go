@@ -17,8 +17,8 @@ func TestNewMessage(t *testing.T) {
 	msg := NewMessage(messageID, channelID, userID, payload, position)
 	after := time.Now().UnixMilli()
 
-	if msg.MessageID != messageID {
-		t.Errorf("Expected MessageID %s, got %s", messageID, msg.MessageID)
+	if msg.MessageID == nil || *msg.MessageID != messageID {
+		t.Errorf("Expected MessageID %s, got %v", messageID, msg.MessageID)
 	}
 	if msg.ChannelID != channelID {
 		t.Errorf("Expected ChannelID %s, got %s", channelID, msg.ChannelID)
@@ -26,10 +26,10 @@ func TestNewMessage(t *testing.T) {
 	if msg.UserID != userID {
 		t.Errorf("Expected UserID %s, got %s", userID, msg.UserID)
 	}
-	if msg.Payload != payload {
-		t.Errorf("Expected Payload %s, got %s", payload, msg.Payload)
+	if msg.Payload == nil || *msg.Payload != payload {
+		t.Errorf("Expected Payload %s, got %v", payload, msg.Payload)
 	}
-	if msg.Position.X != position.X || msg.Position.Y != position.Y {
+	if msg.Position == nil || msg.Position.X != position.X || msg.Position.Y != position.Y {
 		t.Errorf("Expected Position %+v, got %+v", position, msg.Position)
 	}
 	if msg.Timestamp < before || msg.Timestamp > after {
@@ -38,12 +38,16 @@ func TestNewMessage(t *testing.T) {
 }
 
 func TestMessage_Encode(t *testing.T) {
+	messageID := "msg-123"
+	payload := "Hello"
+	position := &Position{X: 50, Y: 75}
+
 	msg := &Message{
-		MessageID: "msg-123",
+		MessageID: &messageID,
 		ChannelID: "default",
 		UserID:    "user-456",
-		Payload:   "Hello",
-		Position:  Position{X: 50, Y: 75},
+		Payload:   &payload,
+		Position:  position,
 		Timestamp: 1609459200000,
 	}
 
@@ -54,8 +58,8 @@ func TestMessage_Encode(t *testing.T) {
 		t.Fatalf("Failed to unmarshal encoded data: %v", err)
 	}
 
-	if decoded["message_id"] != msg.MessageID {
-		t.Errorf("Expected message_id %s, got %v", msg.MessageID, decoded["message_id"])
+	if decoded["message_id"] != *msg.MessageID {
+		t.Errorf("Expected message_id %s, got %v", *msg.MessageID, decoded["message_id"])
 	}
 	if decoded["channel_id"] != msg.ChannelID {
 		t.Errorf("Expected channel_id %s, got %v", msg.ChannelID, decoded["channel_id"])
@@ -63,8 +67,8 @@ func TestMessage_Encode(t *testing.T) {
 	if decoded["user_id"] != msg.UserID {
 		t.Errorf("Expected user_id %s, got %v", msg.UserID, decoded["user_id"])
 	}
-	if decoded["payload"] != msg.Payload {
-		t.Errorf("Expected payload %s, got %v", msg.Payload, decoded["payload"])
+	if decoded["payload"] != *msg.Payload {
+		t.Errorf("Expected payload %s, got %v", *msg.Payload, decoded["payload"])
 	}
 }
 
@@ -109,8 +113,8 @@ func TestDecodeMessage(t *testing.T) {
 				if msg == nil {
 					t.Error("Expected message, got nil")
 				}
-				if msg.MessageID != "msg-123" {
-					t.Errorf("Expected MessageID msg-123, got %s", msg.MessageID)
+				if msg.MessageID == nil || *msg.MessageID != "msg-123" {
+					t.Errorf("Expected MessageID msg-123, got %v", msg.MessageID)
 				}
 			}
 		})
@@ -118,12 +122,16 @@ func TestDecodeMessage(t *testing.T) {
 }
 
 func TestMessage_EncodeDecode_RoundTrip(t *testing.T) {
+	messageID := "msg-789"
+	payload := "Test payload"
+	position := &Position{X: 123, Y: 456}
+
 	original := &Message{
-		MessageID: "msg-789",
+		MessageID: &messageID,
 		ChannelID: "test-channel",
 		UserID:    "user-999",
-		Payload:   "Test payload",
-		Position:  Position{X: 123, Y: 456},
+		Payload:   &payload,
+		Position:  position,
 		Timestamp: 1609459200000,
 	}
 
@@ -137,8 +145,8 @@ func TestMessage_EncodeDecode_RoundTrip(t *testing.T) {
 	}
 
 	// Compare
-	if decoded.MessageID != original.MessageID {
-		t.Errorf("MessageID mismatch: got %s, want %s", decoded.MessageID, original.MessageID)
+	if decoded.MessageID == nil || *decoded.MessageID != *original.MessageID {
+		t.Errorf("MessageID mismatch: got %v, want %s", decoded.MessageID, *original.MessageID)
 	}
 	if decoded.ChannelID != original.ChannelID {
 		t.Errorf("ChannelID mismatch: got %s, want %s", decoded.ChannelID, original.ChannelID)
@@ -146,10 +154,10 @@ func TestMessage_EncodeDecode_RoundTrip(t *testing.T) {
 	if decoded.UserID != original.UserID {
 		t.Errorf("UserID mismatch: got %s, want %s", decoded.UserID, original.UserID)
 	}
-	if decoded.Payload != original.Payload {
-		t.Errorf("Payload mismatch: got %s, want %s", decoded.Payload, original.Payload)
+	if decoded.Payload == nil || *decoded.Payload != *original.Payload {
+		t.Errorf("Payload mismatch: got %v, want %s", decoded.Payload, *original.Payload)
 	}
-	if decoded.Position.X != original.Position.X || decoded.Position.Y != original.Position.Y {
+	if decoded.Position == nil || decoded.Position.X != original.Position.X || decoded.Position.Y != original.Position.Y {
 		t.Errorf("Position mismatch: got %+v, want %+v", decoded.Position, original.Position)
 	}
 	if decoded.Timestamp != original.Timestamp {
@@ -161,10 +169,10 @@ func TestPosition(t *testing.T) {
 	pos := Position{X: 42, Y: 84}
 
 	if pos.X != 42 {
-		t.Errorf("Expected X = 42, got %d", pos.X)
+		t.Errorf("Expected X = 42, got %v", pos.X)
 	}
 	if pos.Y != 84 {
-		t.Errorf("Expected Y = 84, got %d", pos.Y)
+		t.Errorf("Expected Y = 84, got %v", pos.Y)
 	}
 
 	// Test JSON marshaling

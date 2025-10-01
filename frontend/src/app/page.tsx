@@ -1,7 +1,7 @@
 import SideMenu from "@/components/SideMenu";
 import Link from "next/link";
 
-const IndexPage: React.FC = () => {
+export default function Home() {
   return (
     <div className="flex flex-col justify-center items-center h-screen">
       <div className="absolute top-0 left-0 p-4">
@@ -23,6 +23,4 @@ after:bg-black"
       </Link>
     </div>
   );
-};
-
-export default IndexPage;
+}

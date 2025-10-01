@@ -21,6 +21,11 @@ type PubSubClient interface {
 	Publish(ctx context.Context, msg *domain.Message) error
 	Subscribe(ctx context.Context, handler func(*domain.Message) error) error
 	HealthCheck(ctx context.Context) error
+	// Presence operations
+	AddUserToChannel(ctx context.Context, channelID, userID string) error
+	RemoveUserFromChannel(ctx context.Context, channelID, userID string) error
+	RefreshUserPresence(ctx context.Context, channelID, userID string) error
+	GetChannelUsers(ctx context.Context, channelID string) ([]string, error)
 }
 
 // NewMessageService creates a new message service
@@ -34,9 +39,10 @@ func NewMessageService(pubsub PubSubClient, m *melody.Melody, logger *slog.Logge
 
 // PublishMessage publishes a message to the pub/sub system
 func (s *MessageService) PublishMessage(ctx context.Context, msg *domain.Message) error {
-	// Generate message ID if not provided
-	if msg.MessageID == "" {
-		msg.MessageID = uuid.New().String()
+	// Generate message ID if not provided (for chat messages only)
+	if msg.Type == domain.MessageTypeChat && (msg.MessageID == nil || *msg.MessageID == "") {
+		id := uuid.New().String()
+		msg.MessageID = &id
 	}
 
 	// Publish to Redis
@@ -47,6 +53,11 @@ func (s *MessageService) PublishMessage(ctx context.Context, msg *domain.Message
 
 	s.logger.Info("Published message", "message_id", msg.MessageID, "user_id", msg.UserID, "channel", msg.ChannelID)
 	return nil
+}
+
+// GetPubSubClient returns the underlying PubSubClient for presence operations
+func (s *MessageService) GetPubSubClient() PubSubClient {
+	return s.pubsub
 }
 
 // StartSubscriber starts listening for messages and broadcasts them via WebSocket
@@ -60,7 +71,8 @@ func (s *MessageService) StartSubscriber(ctx context.Context) error {
 }
 
 // broadcastMessage broadcasts a message to WebSocket clients
-// It filters out the sender and only sends to users in the same channel
+// For chat messages: filters out the sender, sends only to users in the same channel
+// For presence events: sends to all users in the channel (including sender)
 func (s *MessageService) broadcastMessage(msg *domain.Message) error {
 	data := msg.Encode()
 
@@ -77,14 +89,23 @@ func (s *MessageService) broadcastMessage(msg *domain.Message) error {
 			return false
 		}
 
-		// Only send to users in the same channel, but not to the sender
+		// Only send to users in the same channel
 		channelMatch := channelID == msg.ChannelID
-		differentUser := userID != msg.UserID
+		if !channelMatch {
+			return false
+		}
 
-		return channelMatch && differentUser
+		// For presence events (join/leave), send to everyone including sender
+		if msg.Type == domain.MessageTypeUserJoined || msg.Type == domain.MessageTypeUserLeft {
+			return true
+		}
+
+		// For chat messages, don't send to sender
+		differentUser := userID != msg.UserID
+		return differentUser
 	})
 
-	s.logger.Debug("Broadcast message", "message_id", msg.MessageID, "channel", msg.ChannelID)
+	s.logger.Debug("Broadcast message", "type", msg.Type, "message_id", msg.MessageID, "channel", msg.ChannelID)
 	return nil
 }
 

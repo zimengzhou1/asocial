@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -102,4 +103,89 @@ func (r *RedisPubSub) HealthCheck(ctx context.Context) error {
 // Close closes the Redis client connection
 func (r *RedisPubSub) Close() error {
 	return r.client.Close()
+}
+
+// AddUserToChannel adds a user to a channel's active users set with TTL
+func (r *RedisPubSub) AddUserToChannel(ctx context.Context, channelID, userID string) error {
+	key := fmt.Sprintf("chat:channel:%s:users", channelID)
+	memberKey := fmt.Sprintf("chat:user:%s:%s", channelID, userID)
+
+	// Add user to the channel's user set
+	if err := r.client.SAdd(ctx, key, userID).Err(); err != nil {
+		r.logger.Error("Failed to add user to channel", "error", err, "channel", channelID, "user", userID)
+		return err
+	}
+
+	// Set TTL on the member key (5 minutes, refreshed by heartbeat)
+	if err := r.client.SetEx(ctx, memberKey, "1", 5*time.Minute).Err(); err != nil {
+		r.logger.Error("Failed to set TTL for user", "error", err, "user", userID)
+		return err
+	}
+
+	r.logger.Debug("Added user to channel", "channel", channelID, "user", userID)
+	return nil
+}
+
+// RemoveUserFromChannel removes a user from a channel's active users set
+func (r *RedisPubSub) RemoveUserFromChannel(ctx context.Context, channelID, userID string) error {
+	key := fmt.Sprintf("chat:channel:%s:users", channelID)
+	memberKey := fmt.Sprintf("chat:user:%s:%s", channelID, userID)
+
+	// Remove user from the set
+	if err := r.client.SRem(ctx, key, userID).Err(); err != nil {
+		r.logger.Error("Failed to remove user from channel", "error", err, "channel", channelID, "user", userID)
+		return err
+	}
+
+	// Delete the member TTL key
+	if err := r.client.Del(ctx, memberKey).Err(); err != nil {
+		r.logger.Error("Failed to delete user TTL key", "error", err, "user", userID)
+		return err
+	}
+
+	r.logger.Debug("Removed user from channel", "channel", channelID, "user", userID)
+	return nil
+}
+
+// RefreshUserPresence refreshes the TTL for a user's presence
+func (r *RedisPubSub) RefreshUserPresence(ctx context.Context, channelID, userID string) error {
+	memberKey := fmt.Sprintf("chat:user:%s:%s", channelID, userID)
+
+	// Refresh TTL (5 minutes)
+	if err := r.client.Expire(ctx, memberKey, 5*time.Minute).Err(); err != nil {
+		r.logger.Error("Failed to refresh user presence", "error", err, "user", userID)
+		return err
+	}
+
+	r.logger.Debug("Refreshed user presence", "channel", channelID, "user", userID)
+	return nil
+}
+
+// GetChannelUsers returns all active users in a channel
+func (r *RedisPubSub) GetChannelUsers(ctx context.Context, channelID string) ([]string, error) {
+	key := fmt.Sprintf("chat:channel:%s:users", channelID)
+
+	users, err := r.client.SMembers(ctx, key).Result()
+	if err != nil {
+		r.logger.Error("Failed to get channel users", "error", err, "channel", channelID)
+		return nil, err
+	}
+
+	// Clean up users whose TTL has expired
+	for _, userID := range users {
+		memberKey := fmt.Sprintf("chat:user:%s:%s", channelID, userID)
+		exists, err := r.client.Exists(ctx, memberKey).Result()
+		if err != nil || exists == 0 {
+			// User's TTL expired, remove from set
+			r.client.SRem(ctx, key, userID)
+		}
+	}
+
+	// Get updated list
+	users, err = r.client.SMembers(ctx, key).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }

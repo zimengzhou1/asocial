@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/olahol/melody"
@@ -58,6 +59,33 @@ func (h *WebSocketHandler) handleConnect(sess *melody.Session) {
 	sess.Set("user_id", userID)
 	sess.Set("channel_id", channelID)
 
+	ctx := context.Background()
+
+	// Add user to Redis presence set
+	if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelID, userID); err != nil {
+		h.logger.Error("Failed to add user to channel", "error", err, "user_id", userID)
+	}
+
+	// Get current list of users in the channel and send to the connecting user
+	users, err := h.service.GetPubSubClient().GetChannelUsers(ctx, channelID)
+	if err != nil {
+		h.logger.Error("Failed to get channel users", "error", err, "user_id", userID)
+	} else {
+		// Send user list directly to this session (not via pub/sub)
+		syncMsg := domain.NewUserSyncMessage(channelID, users)
+		sess.Write(syncMsg.Encode())
+		h.logger.Debug("Sent user sync", "user_id", userID, "user_count", len(users))
+	}
+
+	// Publish user joined event
+	joinMsg := domain.NewUserJoinedMessage(channelID, userID)
+	if err := h.service.PublishMessage(ctx, joinMsg); err != nil {
+		h.logger.Error("Failed to publish join event", "error", err, "user_id", userID)
+	}
+
+	// Start heartbeat to keep presence alive
+	go h.startHeartbeat(sess, channelID, userID)
+
 	h.logger.Info("WebSocket connected", "user_id", userID, "channel_id", channelID, "remote_addr", sess.Request.RemoteAddr)
 }
 
@@ -83,11 +111,16 @@ func (h *WebSocketHandler) handleMessage(sess *melody.Session, data []byte) {
 		return
 	}
 
+	payloadLen := 0
+	if msg.Payload != nil {
+		payloadLen = len(*msg.Payload)
+	}
+
 	h.logger.Info("Received message",
 		"message_id", msg.MessageID,
 		"user_id", msg.UserID,
 		"channel_id", msg.ChannelID,
-		"payload_length", len(msg.Payload),
+		"payload_length", payloadLen,
 	)
 
 	// Publish the message via the service
@@ -100,12 +133,53 @@ func (h *WebSocketHandler) handleMessage(sess *melody.Session, data []byte) {
 
 // handleDisconnect is called when a WebSocket connection is closed
 func (h *WebSocketHandler) handleDisconnect(sess *melody.Session) {
-	userID, _ := sess.Get("user_id")
-	channelID, _ := sess.Get("channel_id")
+	userIDVal, _ := sess.Get("user_id")
+	channelIDVal, _ := sess.Get("channel_id")
+
+	userID, _ := userIDVal.(string)
+	channelID, _ := channelIDVal.(string)
+
+	if userID != "" && channelID != "" {
+		ctx := context.Background()
+
+		// Remove user from Redis presence set
+		if err := h.service.GetPubSubClient().RemoveUserFromChannel(ctx, channelID, userID); err != nil {
+			h.logger.Error("Failed to remove user from channel", "error", err, "user_id", userID)
+		}
+
+		// Publish user left event
+		leaveMsg := domain.NewUserLeftMessage(channelID, userID)
+		if err := h.service.PublishMessage(ctx, leaveMsg); err != nil {
+			h.logger.Error("Failed to publish leave event", "error", err, "user_id", userID)
+		}
+	}
 
 	h.logger.Info("WebSocket disconnected",
 		"user_id", userID,
 		"channel_id", channelID,
 		"remote_addr", sess.Request.RemoteAddr,
 	)
+}
+
+// startHeartbeat periodically refreshes user presence in Redis
+func (h *WebSocketHandler) startHeartbeat(sess *melody.Session, channelID, userID string) {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		// Check if session is still active
+		if sess.IsClosed() {
+			h.logger.Debug("Session closed, stopping heartbeat", "user_id", userID)
+			return
+		}
+
+		// Refresh presence TTL
+		ctx := context.Background()
+		if err := h.service.GetPubSubClient().RefreshUserPresence(ctx, channelID, userID); err != nil {
+			h.logger.Error("Failed to refresh user presence", "error", err, "user_id", userID)
+			return
+		}
+
+		h.logger.Debug("Refreshed user presence", "user_id", userID, "channel_id", channelID)
+	}
 }

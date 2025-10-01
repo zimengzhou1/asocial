@@ -73,11 +73,11 @@ func TestRedisPubSub(t *testing.T) {
 	// Wait for message to be received
 	select {
 	case msg := <-received:
-		if msg.MessageID != testMsg.MessageID {
-			t.Errorf("Expected MessageID %s, got %s", testMsg.MessageID, msg.MessageID)
+		if msg.MessageID == nil || testMsg.MessageID == nil || *msg.MessageID != *testMsg.MessageID {
+			t.Errorf("Expected MessageID %v, got %v", testMsg.MessageID, msg.MessageID)
 		}
-		if msg.Payload != testMsg.Payload {
-			t.Errorf("Expected Payload %s, got %s", testMsg.Payload, msg.Payload)
+		if msg.Payload == nil || testMsg.Payload == nil || *msg.Payload != *testMsg.Payload {
+			t.Errorf("Expected Payload %v, got %v", testMsg.Payload, msg.Payload)
 		}
 		if msg.ChannelID != testMsg.ChannelID {
 			t.Errorf("Expected ChannelID %s, got %s", testMsg.ChannelID, msg.ChannelID)
@@ -85,7 +85,7 @@ func TestRedisPubSub(t *testing.T) {
 		if msg.UserID != testMsg.UserID {
 			t.Errorf("Expected UserID %s, got %s", testMsg.UserID, msg.UserID)
 		}
-		if msg.Position.X != testMsg.Position.X || msg.Position.Y != testMsg.Position.Y {
+		if msg.Position == nil || testMsg.Position == nil || msg.Position.X != testMsg.Position.X || msg.Position.Y != testMsg.Position.Y {
 			t.Errorf("Expected Position %+v, got %+v", testMsg.Position, msg.Position)
 		}
 	case <-ctx.Done():
@@ -140,7 +140,7 @@ func TestRedisPubSubMultipleMessages(t *testing.T) {
 			"test-channel",
 			"test-user",
 			string(rune('A'+i))+" message",
-			domain.Position{X: i * 10, Y: i * 20},
+			domain.Position{X: float64(i * 10), Y: float64(i * 20)},
 		)
 		if err := redisPubSub.Publish(ctx, msg); err != nil {
 			t.Fatalf("Failed to publish message %d: %v", i, err)
