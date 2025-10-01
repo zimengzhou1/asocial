@@ -152,47 +152,80 @@ User A                 Frontend Pod              Backend Pod             Redis  
   │                        │                          │                    │                   │                      ├─────────────────────▶│
 ```
 
-### User Presence Flow
+### User Presence Flow (join)
 
 ```
-User A                 Frontend Pod              Backend Pod             Redis            Backend Pod           Frontend Pod              User B
-  │                        │                          │                    │                   │                      │                      │
-  │  1. Open Browser       │                          │                    │                   │                      │                      │
-  ├───────────────────────▶│                          │                    │                   │                      │                      │
-  │                        │                          │                    │                   │                      │                      │
-  │                        │  2. WebSocket Connect    │                    │                   │                      │                      │
-  │                        ├─────────────────────────▶│                    │                   │                      │                      │
-  │                        │                          │                    │                   │                      │                      │
-  │                        │                          │  3. SADD user A    │                   │                      │                      │
-  │                        │                          │     + Set 5min TTL │                   │                      │                      │
-  │                        │                          ├───────────────────▶│                   │                      │                      │
-  │                        │                          │                    │                   │                      │                      │
-  │                        │  4. user_sync msg        │  5. SMEMBERS users │                   │                      │                      │
-  │                        │◀─────────────────────────┤◀───────────────────┤                   │                      │                      │
-  │                        │  {users: [A]}            │  returns [A]       │                   │                      │                      │
-  │                        │                          │                    │                   │                      │                      │
-  │                        │                          │  6. PUBLISH        │                   │                      │                      │
-  │                        │                          │  user_joined(A)    │                   │                      │                      │
-  │                        │                          ├───────────────────▶│  7. SUBSCRIBE     │                      │                      │
-  │                        │                          │                    ├──────────────────▶│                      │                      │
-  │                        │                          │                    │                   │  8. user_joined(A)   │                      │
-  │                        │                          │                    │                   ├─────────────────────▶│                      │
-  │                        │                          │                    │                   │                      │  9. Show count: 1    │
-  │                        │                          │                    │                   │                      ├─────────────────────▶│
-  │                        │                          │                    │                   │                      │                      │
-  │  [60s heartbeat loop]  │                          │  10. EXPIRE user A │                   │                      │                      │
-  │                        │                          │      refresh 5min  │                   │                      │                      │
-  │                        │                          ├───────────────────▶│                   │                      │                      │
-  │                        │                          │                    │                   │                      │                      │
-  │  Close Browser         │                          │  11. SREM user A   │                   │                      │                      │
-  ├───────────────────────▶│   WebSocket Close        │      DEL TTL key   │                   │                      │                      │
-  │                        ├─────────────────────────▶├───────────────────▶│                   │                      │                      │
-  │                        │                          │                    │                   │                      │                      │
-  │                        │                          │  12. PUBLISH       │                   │                      │                      │
-  │                        │                          │  user_left(A)      │  13. user_left(A) │                      │                      │
-  │                        │                          ├───────────────────▶├──────────────────▶│  14. user_left(A)    │                      │
-  │                        │                          │                    │                   ├─────────────────────▶│  15. Show count: 0   │
-  │                        │                          │                    │                   │                      ├─────────────────────▶│
+User A                 Frontend                  Backend                   Redis                     Backend                 Frontend (User B)
+  │                        │                         │                         │                         │                         │
+  │ 1. Open App            │                         │                         │                         │                         │
+  ├───────────────────────>│                         │                         │                         │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │ 2. WebSocket Connect    │                         │                         │                         │
+  │                        ├────────────────────────>│                         │                         │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │                         │ 3. Add User A to Set &  │                         │                         │
+  │                        │                         │    Set 5-min Expiry     │                         │                         │
+  │                        │                         │ (SADD, SETEX)           │                         │                         │
+  │                        │                         ├────────────────────────>│                         │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │                         │ 4. Get All Users in Set │                         │                         │
+  │                        │                         │ (SMEMBERS)              │                         │                         │
+  │                        │                         ├────────────────────────>│                         │                         │
+  │                        │                         │                         │ 5. Returns              │                         |
+  │                        │                         │<────────────────────────┤    [User A, User B]│    │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │ 6. Send ONLY to User A: │                         │                         │                         │
+  │                        │    user_sync message    │                         │                         │                         │
+  │                        │    {users: [A, B]}      │                         │                         │                         │
+  │                        │<────────────────────────┤                         │                         │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │                         │ 7. Publish to Channel:  │                         │                         │
+  │                        │                         │    user_joined(A) event │                         │                         │
+  │                        │                         ├────────────────────────>│                         │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │                         │                         │ 8. Receives Message &   │                         │
+  │                        │                         │                         │    Broadcast to ALL     │                         │
+  │                        │                         │                         │<────────────────────────┤                         │
+  │                        │                         │                         │   (Except User A)       │                         │
+  │                        │                         │                         │                         ├────────────────────────>│ 9. Receives user_joined(A)
+  │                        │                         │                         │                         │                         │    & updates user list
+  │                        │                         │                         │                         │                         │
+  │  [Heartbeat Loop]      │                         │ 10. Every 60s, Refresh  │                         │                         │
+  │                        │                         │    User A's 5-min Expiry│                         │                         │
+  │                        │                         │    (EXPIRE)             │                         │                         │
+  │                        │                         ├────────────────────────>│                         │                         │
+  │                        │                         │                         │                         │                         │
+```
+
+### User Presence Flow (leave)
+
+```
+User A                 Frontend                  Backend                   Redis                     Backend                 Frontend (User B)
+  │                        │                         │                         │                         │                         │
+  │ 1. Close Browser       │                         │                         │                         │                         │
+  ├───────────────────────>│                         │                         │                         │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │ 2. WebSocket Connection │                         │                         │                         │
+  │                        │    Closes               │                         │                         │                         │
+  │                        ├────────────────────────>│                         │                         │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │                         │ 3. Remove User A &      │                         │                         │
+  │                        │                         │    Delete Expiry Key    │                         │                         │
+  │                        │                         │ (SREM, DEL)             │                         │                         │
+  │                        │                         ├────────────────────────>│                         │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │                         │ 4. Publish to Channel:  │                         │                         │
+  │                        │                         │    user_left(A) event   │                         │                         │
+  │                        │                         ├────────────────────────>│                         │                         │
+  │                        │                         │                         │                         │                         │
+  │                        │                         │                         │ 5. Receives Message &   │                         │
+  │                        │                         │                         │    Broadcast to ALL     │                         │
+  │                        │                         │                         │<────────────────────────┤                         │
+  │                        │                         │                         │                         │                         │
+  │                        │                         │                         │                         ├────────────────────────>│ 6. Receives user_left(A)
+  │                        │                         │                         │                         │                         │    & updates user list
+  │                        │                         │                         │                         │                         │
+
 ```
 
 **Key Features:**
