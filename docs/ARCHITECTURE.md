@@ -1,7 +1,5 @@
 # asocial - System Architecture
 
-> A real-time collaborative canvas chat application
-
 ## Deployment Architectures
 
 ### Kubernetes - Minikube (Local)

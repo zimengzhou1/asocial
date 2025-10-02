@@ -1,4 +1,4 @@
-# Asocial - Original Architecture (Pre-Refactor)
+# asocial - Original Architecture (Deprecated)
 
 ## Technology Stack
 
@@ -29,22 +29,22 @@
 
 ```
 ┌──────────────────── Docker Compose ─────────────────────┐
-│                                                          │
+│                                                         │
 │  Traefik (:80, :8080)                                   │
 │    ├─ /* → Frontend (Next.js :3000)                     │
 │    └─ /api/chat → Backend (Go :3001)                    │
-│                         │                                │
-│                    ┌────▼─────┐                          │
+│                         │                               │
+│                    ┌────▼─────┐                         │
 │                    │  Kafka   │  Topic: rc.msg.pub      │
 │                    │  :9092   │  Pub/Sub fanout         │
-│                    └────┬─────┘                          │
-│                         │                                │
-│                    ┌────▼─────┐                          │
+│                    └────┬─────┘                         │
+│                         │                               │
+│                    ┌────▼─────┐                         │
 │                    │Zookeeper │  Kafka coordination     │
-│                    │  :2181   │                          │
-│                    └──────────┘                          │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
+│                    │  :2181   │                         │
+│                    └──────────┘                         │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 
 Access: http://localhost/  (Frontend)
         http://localhost:8080/  (Traefik Dashboard)
@@ -140,54 +140,6 @@ kafka:
 - `LocalMessage`: Editable input (user's messages)
 - `ExternalMessage`: Read-only div (others' messages)
 
----
-
-**Status:** Removed to simplify refactoring
-
-The application is currently open - anyone can join and chat without login.
-
-- No Firebase Admin SDK integration
-
-1. **No Route Protection**
-
-   - Chat page accessible without login
-   - No middleware to check authentication
-   - No redirect logic after login
-
-2. **No User Context**
-
-   - UserMenu shows "curUser" placeholder
-   - No way to display actual user info
-   - No persistent sessions
-
-3. **Conflicting Auth Approaches**
-   - Both Firebase SDK and NextAuth installed
-   - `SignIn.tsx` uses NextAuth
-   - `login-page.tsx` uses Firebase SDK
-   - Causes confusion and bloat
-
-### Authentication Assessment
-
-**Recommendation:** **Remove authentication for now**
-
-**Reasoning:**
-
-1. Incomplete implementation (no backend validation)
-2. Conflicting approaches (NextAuth + Firebase)
-3. Not the focus of the CV showcase (real-time architecture is)
-4. Can be added back properly in Phase 1 refactor
-5. Simplifies initial testing and development
-
-**If keeping auth is desired:**
-
-- Remove NextAuth entirely
-- Keep Firebase SDK only
-- Implement backend JWT validation
-- Add protected routes
-- Fix UserMenu to show real user data
-
----
-
 ## Running Locally
 
 ### Prerequisites
@@ -229,18 +181,6 @@ docker-compose logs -f
 docker-compose logs -f backend
 docker-compose logs -f frontend
 docker-compose logs -f kafka
-```
-
-**Stop services:**
-
-```bash
-docker-compose down
-```
-
-**Clean up (remove volumes):**
-
-```bash
-docker-compose down -v
 ```
 
 ### Option 2: Manual (Backend Only)

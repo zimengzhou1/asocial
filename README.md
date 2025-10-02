@@ -8,26 +8,6 @@ asocial is a full-stack real-time collaborative chat application. The backend is
 
 Available on: [https://asocial.page](https://asocial.page), works best on desktop browsers.
 
-## Architecture
-
-**Docker Compose (Local Development):**
-
-```
-Browser → Traefik → Frontend / Backend → Redis
-```
-
-**Kubernetes - Minikube (Local Testing):**
-
-```
-Browser → Ingress-NGINX → Frontend (2 pods) / Backend (3 pods) → Redis (StatefulSet)
-```
-
-**k3s + Cloudflare Tunnel (Production):**
-
-```
-Internet → Cloudflare CDN → Tunnel → k3s Ingress-NGINX → Frontend/Backend → Redis
-```
-
 ## Quick Start
 
 ### Prerequisites
@@ -58,15 +38,6 @@ make k8s-clean         # Stop cluster (keeps data)
 make k8s-delete        # Delete cluster entirely
 ```
 
-**How it works:**
-
-- Minikube creates a local Kubernetes cluster
-- Backend runs with 3 replicas (load balanced)
-- Frontend runs with 2 replicas
-- Redis StatefulSet with persistent storage
-- Ingress-NGINX routes traffic (`/api/*` → backend, `/*` → frontend)
-- `minikube tunnel` exposes Ingress to localhost:80
-
 ### Running with k3s (Production - Remote Server)
 
 Deploy to a remote server and expose via Cloudflare Tunnel (free, automatic HTTPS).
@@ -80,25 +51,21 @@ Deploy to a remote server and expose via Cloudflare Tunnel (free, automatic HTTP
 **Setup:**
 
 ```bash
-# 1. Install k3s on server
 ssh your-server
 sudo bash scripts/remote-setup.sh  # Installs k3s + Docker + NGINX Ingress
 
-# 2. Configure kubectl on your Mac
+# Configure kubectl on your local machine
 scp your-server:/etc/rancher/k3s/k3s.yaml ~/.kube/k3s-config
 # Edit k3s-config: replace 127.0.0.1 with server IP or Tailscale IP
 export KUBECONFIG=~/.kube/k3s-config
 
-# 3. Deploy application
+# Deploy application
 make remote-deploy
 
-# 4. Setup Cloudflare Tunnel (on server)
+# Setup Cloudflare Tunnel (on server)
 ssh your-server
 sudo bash scripts/remote-tunnel-setup.sh
-# Follow prompts to authenticate and configure domain
 ```
-
-**Access:** `https://your-domain.com`
 
 **Management:**
 
@@ -148,7 +115,7 @@ docker run -d -p 6379:6379 redis:7-alpine
 # Start backend
 make run
 
-# Start frontend (in another terminal)
+# Start frontend
 cd frontend && npm run dev
 ```
 
@@ -165,7 +132,7 @@ Upgrades HTTP connection to WebSocket for real-time bidirectional communication.
 - `user_id` (required): Unique identifier for the user
 - `channel_id` (optional): Channel to join (default: "default")
 
-**Example:**
+**Simplified Example:**
 
 ```javascript
 const ws = new WebSocket(
@@ -204,12 +171,12 @@ interface Message {
   payload?: string; // Message content (chat only)
   position?: Position; // Canvas position (chat only)
   users?: string[]; // User list (user_sync only)
-  timestamp: number; // Unix timestamp (milliseconds)
+  timestamp: number; // Unix timestamp (ms)
 }
 
 interface Position {
-  x: number; // X coordinate on canvas (float for sub-pixel precision)
-  y: number; // Y coordinate on canvas (float for sub-pixel precision)
+  x: number; // X coordinate on canvas
+  y: number; // Y coordinate on canvas
 }
 ```
 
@@ -300,25 +267,25 @@ make test-integration
 make test-coverage
 ```
 
-### CI/CD Workflow
+## Architecture Documentation
 
-Changes pushed to `main` automatically trigger:
+**Docker Compose (Local Development):**
 
-1. **GitHub Actions** builds Docker images
-2. Images pushed to GHCR with tags: `latest` + `sha-<commit>`
-3. Deploy to production: `make remote-update`
-
-**Full workflow:**
-
-```bash
-git add .
-git commit -m "Your changes"
-git push origin main          # Triggers CI (2-3 min)
-make remote-update            # Deploy to k3s
-make remote-logs              # Verify deployment
+```
+Browser → Traefik → Frontend / Backend → Redis
 ```
 
-## Architecture Documentation
+**Kubernetes - Minikube (Local Testing):**
+
+```
+Browser → Ingress-NGINX → Frontend (2 pods) / Backend (3 pods) → Redis (StatefulSet)
+```
+
+**k3s + Cloudflare Tunnel (Production):**
+
+```
+Internet → Cloudflare CDN → Tunnel → k3s Ingress-NGINX → Frontend/Backend → Redis
+```
 
 For detailed architecture information, see:
 
