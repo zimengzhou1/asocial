@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-coverage clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy
+.PHONY: help build test test-unit test-integration test-coverage clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy k8s-setup k8s-deploy k8s-logs k8s-status k8s-tunnel k8s-clean k8s-delete
 
 # Default target
 .DEFAULT_GOAL := help
@@ -130,3 +130,49 @@ docker-restart: docker-down docker-up
 ## check: Run all checks (fmt, vet, lint, test)
 check: fmt vet test
 	@echo "All checks passed"
+
+## k8s-setup: Setup and deploy to local Kubernetes (minikube)
+k8s-setup:
+	@./scripts/k8s-setup.sh
+
+## k8s-deploy: Apply Kubernetes manifests (without full setup)
+k8s-deploy:
+	@echo "Applying Kubernetes manifests..."
+	kubectl apply -f k8s/namespace.yaml
+	kubectl apply -f k8s/redis/
+	kubectl apply -f k8s/backend/
+	kubectl apply -f k8s/frontend/
+	kubectl apply -f k8s/ingress.yaml
+	@echo "Manifests applied"
+
+## k8s-logs: Tail logs from all pods
+k8s-logs:
+	@./scripts/k8s-logs.sh
+
+## k8s-status: Show status of all Kubernetes resources
+k8s-status:
+	@echo "Kubernetes Resources:"
+	@echo ""
+	@kubectl get pods,svc,ingress -n asocial
+
+## k8s-tunnel: Start minikube tunnel (run in separate terminal)
+k8s-tunnel:
+	@echo "Starting minikube tunnel..."
+	@echo "Keep this running and access app at http://localhost"
+	minikube tunnel
+
+## k8s-clean: Delete Kubernetes resources and stop minikube
+k8s-clean:
+	@./scripts/k8s-teardown.sh
+
+## k8s-delete: Completely delete minikube cluster
+k8s-delete:
+	@echo "⚠️  This will delete the entire minikube cluster and all data"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		minikube delete; \
+		echo "✅ Cluster deleted"; \
+	else \
+		echo "Cancelled"; \
+	fi

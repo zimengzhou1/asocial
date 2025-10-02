@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: asocial
+data:
+  # WebSocket and API calls go through Ingress (same host)
+  # When accessed via minikube tunnel or port-forward, these will resolve correctly
+  NEXT_PUBLIC_BACKEND_WS_URL: "ws://localhost/api/chat"
+  NEXT_PUBLIC_BACKEND_URL: "http://localhost"

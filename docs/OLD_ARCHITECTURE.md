@@ -9,7 +9,6 @@
 - **Pub/Sub:** Watermill + Watermill-Kafka
 - **Config:** Viper
 - **DI:** Google Wire
-- **ID Generation:** Sonyflake
 
 ### Frontend (Next.js 14)
 

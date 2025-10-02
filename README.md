@@ -1,71 +1,63 @@
-# Asocial
+# asocial
 
-> A real-time collaborative canvas chat application where users can type anywhere on the canvas, with each keystroke broadcasted instantly to all connected users.
+> A real-time collaborative canvas chat application where each keystroke broadcasted to all connected users.
 
 ## Overview
 
-Asocial is a full-stack web application demonstrating real-time communication using WebSockets, user presence tracking, clean architecture patterns, and modern cloud-native design principles. Built with Go and Next.js, it showcases production-ready development practices including Docker containerization, Redis-based presence tracking with TTL, Zustand state management, structured logging, health checks, and comprehensive testing.
-
-## Technology Stack
-
-### Backend
-
-- **Language**: Go 1.22.1
-- **Framework**: Gin (HTTP routing)
-- **WebSocket**: Melody
-- **Pub/Sub**: Redis
-- **Configuration**: Viper
-- **Logging**: slog (structured JSON logging)
-
-### Frontend
-
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **State Management**: Zustand
-- **Styling**: TailwindCSS
-- **Gestures**: @use-gesture/react
-- **Real-time**: Native WebSocket API with custom hook
-
-### Infrastructure
-
-- **Containerization**: Docker & Docker Compose
-- **Reverse Proxy**: Traefik
-- **Cache/Pub-Sub/Presence**: Redis 7 (Pub/Sub + Sets with TTL)
-- **Orchestration** (planned): Kubernetes
+asocial is a full-stack real-time collaborative chat application. The backend is built with Go (Gin + Melody for WebSockets), uses Redis for pub/sub messaging, and the frontend is Next.js 15 with Zustand state management. Supports both Docker Compose and Kubernetes (minikube) deployments.
 
 ## Architecture
 
-```
-┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-│   Frontend  │◄─────►│   Traefik   │◄─────►│   Backend   │
-│  (Next.js)  │       │  (Routing)  │       │     (Go)    │
-└─────────────┘       └─────────────┘       └──────┬──────┘
-                                                   │
-                                                   ▼
-                                            ┌─────────────┐
-                                            │    Redis    │
-                                            │  (Pub/Sub)  │
-                                            └─────────────┘
-```
-
-### Clean Architecture
+**Docker Compose (Development):**
 
 ```
-internal/
-├── domain/       # Business entities (Message, Position)
-├── service/      # Business logic (MessageService)
-├── pubsub/       # Pub/Sub abstraction (Redis implementation)
-├── handler/      # HTTP/WebSocket handlers
-└── config/       # Configuration management
+Browser → Traefik → Frontend (Next.js) / Backend (Go) → Redis
+```
+
+**Kubernetes (Production-like):**
+
+```
+Browser → Ingress-NGINX → Frontend (2 pods) / Backend (3 pods) → Redis (StatefulSet)
 ```
 
 ## Quick Start
 
 ### Prerequisites
 
-- **Docker & Docker Compose**: For running the application
+- **Docker & Docker Compose**: For Docker Compose deployment
+- **Minikube**: For Kubernetes deployment
 - **Go 1.22+**: For local development
 - **Node.js 18+**: For frontend development
+
+### Running with Kubernetes
+
+```bash
+# One-time setup: Start minikube and deploy everything
+make k8s-setup
+
+# In a separate terminal, expose services to localhost
+make k8s-tunnel
+
+# Access the app at http://localhost
+```
+
+**Other K8s commands:**
+
+```bash
+make k8s-status        # View pod status
+make k8s-logs          # Tail logs from all pods
+make k8s-clean         # Stop cluster (keeps data)
+make k8s-delete        # Delete cluster entirely
+```
+
+**How it works:**
+
+- Minikube creates a local Kubernetes cluster
+- Backend runs with 3 replicas (load balanced)
+- Frontend runs with 2 replicas
+- Redis StatefulSet with persistent storage
+- Ingress-NGINX routes traffic (`/api/*` → backend, `/*` → frontend)
+- `minikube tunnel` exposes Ingress to localhost:80
 
 ### Running with Docker Compose
 
@@ -87,7 +79,7 @@ make docker-down
 - Health Check: http://localhost/health
 - Traefik Dashboard: http://localhost:8080
 
-### Running Locally
+### Running Locally (No containers)
 
 ```bash
 # Install dependencies
@@ -166,6 +158,7 @@ interface Position {
 ```
 
 **Message Types:**
+
 - `chat`: User-sent chat message with content and position
 - `user_joined`: Broadcast when a user connects (presence event)
 - `user_left`: Broadcast when a user disconnects (presence event)
@@ -191,30 +184,35 @@ interface Position {
 | `ASOCIAL_REDIS_DB`                | Redis database number     | `0`             |
 | `ASOCIAL_REDIS_CHANNEL`           | Redis pub/sub channel     | `chat:messages` |
 
-### Configuration File
-
-Edit `config.yaml`:
-
-```yaml
-server:
-  port: "3001"
-  max_connections: 200
-  max_message_size: 4096
-
-redis:
-  addr: "redis:6379"
-  password: ""
-  db: 0
-  channel: "chat:messages"
-```
-
 ## Development
 
 ### Available Make Targets
 
+**Kubernetes:**
+
 ```bash
-make help                 # Show all available targets
-make build                # Build the backend binary
+make k8s-setup            # Setup and deploy to minikube
+make k8s-tunnel           # Expose services to localhost
+make k8s-status           # Show pod/service status
+make k8s-logs             # Tail logs from all pods
+make k8s-clean            # Stop cluster (preserves data)
+make k8s-delete           # Delete cluster entirely
+```
+
+**Docker Compose:**
+
+```bash
+make docker-up            # Start all services
+make docker-down          # Stop all services
+make docker-logs          # View logs
+make docker-build         # Build Docker images
+```
+
+**Development:**
+
+```bash
+make build                # Build backend binary
+make run                  # Run backend locally
 make test                 # Run all tests
 make test-unit            # Run unit tests only
 make test-integration     # Run integration tests (requires Redis)
@@ -222,10 +220,6 @@ make test-coverage        # Generate test coverage report
 make lint                 # Run linter
 make fmt                  # Format code
 make clean                # Clean build artifacts
-make docker-build         # Build Docker images
-make docker-up            # Start all services
-make docker-down          # Stop all services
-make docker-logs          # View logs
 ```
 
 ### Running Tests
@@ -241,67 +235,9 @@ make test-integration
 make test-coverage
 ```
 
-### Project Structure
-
-```
-asocial/
-├── cmd/server/           # Application entry point
-├── internal/
-│   ├── domain/           # Business entities (Message, Position, MessageType)
-│   ├── service/          # Business logic (MessageService)
-│   ├── pubsub/           # Redis pub/sub + presence tracking
-│   ├── handler/          # HTTP/WebSocket handlers + presence lifecycle
-│   └── config/           # Configuration loader
-├── frontend/             # Next.js application
-│   ├── src/
-│   │   ├── app/          # Next.js 14 app router pages
-│   │   ├── components/   # React components (Canvas, Messages, Layout)
-│   │   ├── hooks/        # Custom hooks (useWebSocket)
-│   │   └── stores/       # Zustand state management (chatStore)
-│   ├── public/           # Static assets
-│   └── package.json
-├── tests/
-│   └── integration/      # Integration tests
-├── docs/                 # Documentation
-├── config.yaml           # Application configuration
-├── docker-compose.yml    # Docker Compose setup
-├── Makefile              # Build automation
-└── README.md            # This file
-```
-
-## Features
-
-- ✅ Real-time bidirectional communication via WebSockets
-- ✅ **User presence tracking with TTL-based cleanup**
-- ✅ **Real-time user join/leave notifications**
-- ✅ **Frontend state management with Zustand**
-- ✅ Multi-channel support
-- ✅ Scalable pub/sub architecture with Redis
-- ✅ Clean architecture with separation of concerns
-- ✅ Structured JSON logging
-- ✅ Health check endpoints for Kubernetes
-- ✅ Graceful shutdown handling
-- ✅ Docker containerization
-- ✅ Sub-pixel precision canvas positioning
-- ✅ Pan/zoom/pinch gestures
-- ✅ Type-safe TypeScript frontend
-
-## Roadmap
-
-- [ ] **Phase 2**: CI/CD pipeline with GitHub Actions
-- [ ] **Phase 3**: Kubernetes deployment manifests
-- [ ] **Phase 4**: Horizontal Pod Autoscaling
-- [ ] **Phase 5**: Observability (Prometheus + Grafana)
-- [ ] **Phase 6**: Authentication (Firebase/JWT)
-- [ ] **Phase 7**: Rate limiting
-- [ ] **Phase 8**: Message persistence
-
-See [docs/PLANNING.md](docs/PLANNING.md) for detailed roadmap.
-
 ## Architecture Documentation
 
 For detailed architecture information, see:
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design and component interactions
 - [OLD_ARCHITECTURE.md](docs/OLD_ARCHITECTURE.md) - Legacy system documentation
-- [PLANNING.md](docs/PLANNING.md) - Implementation phases and progress
