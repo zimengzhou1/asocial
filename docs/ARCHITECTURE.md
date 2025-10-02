@@ -4,7 +4,7 @@
 
 ## Deployment Architectures
 
-### Kubernetes (Minikube)
+### Kubernetes - Minikube (Local)
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -53,7 +53,58 @@
                     └────────────┘
 ```
 
-### Docker Compose
+### k3s + Cloudflare Tunnel (Production)
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                       k3s Cluster                          │
+│                                                            │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │          Ingress-NGINX Controller                   │   │
+│  │  • Routes /api/* → backend                          │   │
+│  │  • Routes /* → frontend                             │   │
+│  │  • Listens on localhost:80                          │   │
+│  └───────┬─────────────────────────┬───────────────────┘   │
+│          │                         │                       │
+│  ┌───────▼─────────┐      ┌────────▼──────────┐            │
+│  │ Frontend Svc    │      │  Backend Svc      │            │
+│  │ ClusterIP:3000  │      │  ClusterIP:3001   │            │
+│  └───────┬─────────┘      └────────┬──────────┘            │
+│          │                         │                       │
+│  ┌───────▼─────────┐      ┌────────▼──────────┐            │
+│  │ Frontend Pods   │      │  Backend Pods     │            │
+│  │ • Next.js 15    │      │  • Go/Gin/Melody  │            │
+│  │ • 2 replicas    │      │  • 3 replicas     │            │
+│  │ • Port 3000     │      │  • Port 3001      │            │
+│  └─────────────────┘      └────────┬──────────┘            │
+│                                    │                       │
+│                           ┌────────▼──────────┐            │
+│                           │ Redis StatefulSet │            │
+│                           │ • Redis 7-alpine  │            │
+│                           │ • Persistent (1Gi)│            │
+│                           └───────────────────┘            │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
+                          ▲
+                          │ Cloudflare Tunnel
+                          │ (systemd service)
+                          │
+┌────────────────────┐    │    ┌──────────────────────┐
+│  Cloudflare CDN    │◄───┴───►│  Cloudflare Tunnel   │
+│  • HTTPS           │         │  • Runs on server    │
+│  • DDoS protection │         │  • http://localhost  │
+│  • Global Edge     │         └──────────────────────┘
+└─────────┬──────────┘
+          │
+          │ HTTPS
+          │
+    ┌─────▼──────┐
+    │   Users    │
+    │  (Internet)│
+    └────────────┘
+```
+
+### Docker Compose (Local)
 
 ```
 ┌────────────────────────────────────────────────────────────┐
@@ -236,8 +287,17 @@ User A                 Frontend                  Backend                   Redis
 
 **Networking:**
 
-- **K8s Ingress**: NGINX controller routes by path, supports WebSocket upgrades
-- **Services**: ClusterIP for internal load balancing
-- **Minikube Tunnel**: Exposes Ingress to localhost
+- **Minikube**: NGINX Ingress Controller, `minikube tunnel` exposes to localhost
+- **k3s**: NGINX Ingress Controller, Cloudflare Tunnel exposes to internet
+- **Docker Compose**: Traefik reverse proxy
+- **Services**: ClusterIP for internal K8s load balancing
+- **WebSocket**: Long-lived connections with 3600s timeout
+
+**Deployment & CI/CD:**
+
+- **GitHub Actions**: Auto-builds Docker images on push to main
+- **Image Registry**: GitHub Container Registry (GHCR)
+- **Image Tags**: `latest` + `sha-<commit>` for each build
+- **Redeployment**: `make remote-update` pulls latest images and restarts pods
 
 ---

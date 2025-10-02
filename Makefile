@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-coverage clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy k8s-setup k8s-deploy k8s-logs k8s-status k8s-tunnel k8s-clean k8s-delete
+.PHONY: help build test test-unit test-integration test-coverage clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy k8s-setup k8s-deploy k8s-logs k8s-status k8s-tunnel k8s-clean k8s-delete remote-deploy remote-status remote-logs remote-update
 
 # Default target
 .DEFAULT_GOAL := help
@@ -176,3 +176,19 @@ k8s-delete:
 	else \
 		echo "Cancelled"; \
 	fi
+
+## remote-deploy: Deploy to remote k3s cluster
+remote-deploy:
+	@./scripts/remote-deploy.sh
+
+## remote-status: Show status of remote k3s deployment
+remote-status:
+	@./scripts/remote-status.sh
+
+## remote-logs: Tail logs from remote k3s pods
+remote-logs:
+	@./scripts/remote-logs.sh
+
+## remote-update: Update remote deployment with latest images
+remote-update:
+	@./scripts/remote-update.sh

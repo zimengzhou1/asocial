@@ -1,23 +1,31 @@
 # asocial
 
-> A real-time collaborative canvas chat application where each keystroke broadcasted to all connected users.
+> A real-time collaborative canvas chat application where each keystroke is broadcasted to all connected users.
 
 ## Overview
 
-asocial is a full-stack real-time collaborative chat application. The backend is built with Go (Gin + Melody for WebSockets), uses Redis for pub/sub messaging, and the frontend is Next.js 15 with Zustand state management. Supports both Docker Compose and Kubernetes (minikube) deployments.
+asocial is a full-stack real-time collaborative chat application. The backend is built with Go (Gin + Melody for WebSockets), uses Redis for pub/sub messaging, and the frontend is Next.js 15 with Zustand state management. Supports Docker Compose, Kubernetes (minikube), and k3s (production) deployments.
+
+Available on: [https://asocial.page](https://asocial.page), works best on desktop browsers.
 
 ## Architecture
 
-**Docker Compose (Development):**
+**Docker Compose (Local Development):**
 
 ```
-Browser → Traefik → Frontend (Next.js) / Backend (Go) → Redis
+Browser → Traefik → Frontend / Backend → Redis
 ```
 
-**Kubernetes (Production-like):**
+**Kubernetes - Minikube (Local Testing):**
 
 ```
 Browser → Ingress-NGINX → Frontend (2 pods) / Backend (3 pods) → Redis (StatefulSet)
+```
+
+**k3s + Cloudflare Tunnel (Production):**
+
+```
+Internet → Cloudflare CDN → Tunnel → k3s Ingress-NGINX → Frontend/Backend → Redis
 ```
 
 ## Quick Start
@@ -29,7 +37,7 @@ Browser → Ingress-NGINX → Frontend (2 pods) / Backend (3 pods) → Redis (St
 - **Go 1.22+**: For local development
 - **Node.js 18+**: For frontend development
 
-### Running with Kubernetes
+### Running with Kubernetes (Local - Minikube)
 
 ```bash
 # One-time setup: Start minikube and deploy everything
@@ -58,6 +66,54 @@ make k8s-delete        # Delete cluster entirely
 - Redis StatefulSet with persistent storage
 - Ingress-NGINX routes traffic (`/api/*` → backend, `/*` → frontend)
 - `minikube tunnel` exposes Ingress to localhost:80
+
+### Running with k3s (Production - Remote Server)
+
+Deploy to a remote server and expose via Cloudflare Tunnel (free, automatic HTTPS).
+
+**Prerequisites:**
+
+- Remote server with SSH access
+- Cloudflare account + domain on Cloudflare DNS
+- (Optional) Tailscale for easier server access
+
+**Setup:**
+
+```bash
+# 1. Install k3s on server
+ssh your-server
+sudo bash scripts/remote-setup.sh  # Installs k3s + Docker + NGINX Ingress
+
+# 2. Configure kubectl on your Mac
+scp your-server:/etc/rancher/k3s/k3s.yaml ~/.kube/k3s-config
+# Edit k3s-config: replace 127.0.0.1 with server IP or Tailscale IP
+export KUBECONFIG=~/.kube/k3s-config
+
+# 3. Deploy application
+make remote-deploy
+
+# 4. Setup Cloudflare Tunnel (on server)
+ssh your-server
+sudo bash scripts/remote-tunnel-setup.sh
+# Follow prompts to authenticate and configure domain
+```
+
+**Access:** `https://your-domain.com`
+
+**Management:**
+
+```bash
+make remote-status     # Show pod status
+make remote-logs       # View logs
+make remote-update     # Deploy latest images
+```
+
+**Redeployment workflow:**
+
+```bash
+git push              # Triggers CI to build images
+make remote-update    # Pull and restart pods
+```
 
 ### Running with Docker Compose
 
@@ -188,7 +244,7 @@ interface Position {
 
 ### Available Make Targets
 
-**Kubernetes:**
+**Kubernetes (Local - Minikube):**
 
 ```bash
 make k8s-setup            # Setup and deploy to minikube
@@ -197,6 +253,15 @@ make k8s-status           # Show pod/service status
 make k8s-logs             # Tail logs from all pods
 make k8s-clean            # Stop cluster (preserves data)
 make k8s-delete           # Delete cluster entirely
+```
+
+**Remote k3s (Production):**
+
+```bash
+make remote-deploy        # Deploy to remote k3s cluster
+make remote-status        # Show remote pod status
+make remote-logs          # Tail logs from remote pods
+make remote-update        # Update to latest Docker images
 ```
 
 **Docker Compose:**
@@ -233,6 +298,24 @@ make test-integration
 
 # All tests with coverage report
 make test-coverage
+```
+
+### CI/CD Workflow
+
+Changes pushed to `main` automatically trigger:
+
+1. **GitHub Actions** builds Docker images
+2. Images pushed to GHCR with tags: `latest` + `sha-<commit>`
+3. Deploy to production: `make remote-update`
+
+**Full workflow:**
+
+```bash
+git add .
+git commit -m "Your changes"
+git push origin main          # Triggers CI (2-3 min)
+make remote-update            # Deploy to k3s
+make remote-logs              # Verify deployment
 ```
 
 ## Architecture Documentation
