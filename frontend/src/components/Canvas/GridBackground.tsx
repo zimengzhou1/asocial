@@ -35,7 +35,7 @@ const GridBackground: React.FC<GridBackgroundProps> = ({
           fontSize: "100px",
           fontWeight: 300,
           color: "#000000",
-          opacity: 0.03,
+          opacity: 0.06,
           userSelect: "none",
           whiteSpace: "nowrap",
         }}

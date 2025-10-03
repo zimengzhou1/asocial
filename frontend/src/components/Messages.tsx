@@ -7,6 +7,7 @@ import Sidebar from "@/components/Layout/Sidebar";
 import MiniMap from "@/components/Canvas/MiniMap";
 import { useChatStore } from "@/stores/chatStore";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { generateUUID } from "@/utils/uuid";
 
 const Messages: React.FC = () => {
   // Get state from Zustand store
@@ -25,7 +26,7 @@ const Messages: React.FC = () => {
   });
 
   const handleCanvasClick = (x: number, y: number) => {
-    const messageId = crypto.randomUUID();
+    const messageId = generateUUID();
     addMessage(messageId, localUserId, "", x, y);
   };
 

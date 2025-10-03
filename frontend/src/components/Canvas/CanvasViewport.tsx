@@ -31,6 +31,8 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
   const initializedRef = useRef(false);
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
   const hasDraggedRef = useRef(false);
+  const isPinchingRef = useRef(false);
+  const pinchEndTimeRef = useRef(0);
 
   // Constrain viewport to canvas boundaries
   const constrainViewport = (x: number, y: number, scale: number) => {
@@ -94,15 +96,19 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
       },
 
       onDrag: ({ offset: [dx, dy], pinching, movement: [mx, my] }) => {
-        if (!pinching) {
-          // Mark as dragged if moved more than 3px
-          if (Math.abs(mx) > 3 || Math.abs(my) > 3) {
-            hasDraggedRef.current = true;
-          }
-          const constrained = constrainViewport(dx, dy, scale);
-          setTransform({ x: constrained.x, y: constrained.y, scale });
-          onViewportChange?.(constrained.x, constrained.y, scale);
+        // Ignore drag events during pinch or shortly after pinch ends
+        const timeSincePinchEnd = Date.now() - pinchEndTimeRef.current;
+        if (pinching || isPinchingRef.current || timeSincePinchEnd < 150) {
+          return;
         }
+
+        // Mark as dragged if moved more than 3px
+        if (Math.abs(mx) > 3 || Math.abs(my) > 3) {
+          hasDraggedRef.current = true;
+        }
+        const constrained = constrainViewport(dx, dy, scale);
+        setTransform({ x: constrained.x, y: constrained.y, scale });
+        onViewportChange?.(constrained.x, constrained.y, scale);
       },
 
       onDragEnd: () => {
@@ -113,7 +119,12 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
       },
 
       // Pinch to zoom (mobile)
+      onPinchStart: () => {
+        isPinchingRef.current = true;
+      },
+
       onPinch: ({ offset: [d], origin: [ox, oy] }) => {
+        isPinchingRef.current = true;
         const newScale = Math.max(0.5, Math.min(3, d));
 
         // Adjust offset so we zoom around the pinch center
@@ -128,6 +139,11 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
         const constrained = constrainViewport(newX, newY, newScale);
         setTransform({ x: constrained.x, y: constrained.y, scale: newScale });
         onViewportChange?.(constrained.x, constrained.y, newScale);
+      },
+
+      onPinchEnd: () => {
+        isPinchingRef.current = false;
+        pinchEndTimeRef.current = Date.now();
       },
 
       // Mouse wheel to zoom (desktop)
