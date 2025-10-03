@@ -50,8 +50,8 @@ const MiniMap: React.FC<MiniMapProps> = ({
     const clickY = e.clientY - rect.top;
 
     // Convert minimap coordinates to canvas coordinates
-    const canvasX = (clickX / scaleX);
-    const canvasY = (clickY / scaleY);
+    const canvasX = clickX / scaleX;
+    const canvasY = clickY / scaleY;
 
     // Center the viewport on the clicked position
     const targetX = -canvasX * viewportScale + window.innerWidth / 2;
@@ -63,7 +63,7 @@ const MiniMap: React.FC<MiniMapProps> = ({
   return (
     <>
       {!isOpen && (
-        <div className="fixed top-4 right-4 z-50">
+        <div className="fixed top-4 right-4 md:top-4 md:right-4 z-50">
           <button
             onClick={() => setIsOpen(true)}
             className="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors border border-gray-300"
@@ -87,30 +87,7 @@ const MiniMap: React.FC<MiniMapProps> = ({
       )}
 
       {isOpen && (
-        <div className="fixed top-4 right-4 z-50 bg-white rounded-lg shadow-lg border border-gray-300 p-2">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-gray-600">Map</span>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
-              aria-label="Close minimap"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-
+        <div className="fixed top-4 right-4 md:top-4 md:right-4 z-50 bg-white rounded-lg shadow-lg border border-gray-300 p-1.5">
           <div
             className="relative bg-gray-50 border border-gray-200 cursor-pointer rounded overflow-hidden"
             style={{
@@ -119,6 +96,36 @@ const MiniMap: React.FC<MiniMapProps> = ({
             }}
             onClick={handleMiniMapClick}
           >
+            {/* Minimap label */}
+            <div className="absolute top-0 left-1 z-10 pointer-events-none">
+              <span className="text-[10px] font-semibold text-gray-600">
+                minimap
+              </span>
+            </div>
+
+            {/* Close button overlay */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+              className="absolute top-1 right-1 p-0.5 bg-white hover:bg-gray-100 rounded shadow-sm border border-gray-300 transition-colors z-10"
+              aria-label="Close minimap"
+            >
+              <svg
+                className="w-3 h-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
             {/* Grid pattern */}
             <div
               className="absolute inset-0 opacity-30"

@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Prevent page scrolling/zooming - canvas handles its own gestures */
+body {
+  overscroll-behavior: none;
+  overflow: hidden;
+}
