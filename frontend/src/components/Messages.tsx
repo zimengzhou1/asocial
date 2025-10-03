@@ -42,8 +42,13 @@ const Messages: React.FC = () => {
 
   const handleRecenter = () => {
     // Calculate center position based on window size
-    const centerX = window.innerWidth / 2 - 5000 / 2 - 56; // Account for sidebar
-    const centerY = window.innerHeight / 2 - 5000 / 2;
+    // Account for sidebar: left on desktop (56px), bottom on mobile (64px)
+    const isMobile = window.innerWidth < 768; // md breakpoint
+    const sidebarOffset = isMobile ? 0 : 56; // Left offset for desktop
+    const bottomOffset = isMobile ? 64 : 0; // Bottom offset for mobile
+
+    const centerX = window.innerWidth / 2 - 5000 / 2 - sidebarOffset;
+    const centerY = window.innerHeight / 2 - 5000 / 2 - bottomOffset / 2;
     setViewport({ x: centerX, y: centerY, scale: 1 });
   };
 
@@ -75,8 +80,8 @@ const Messages: React.FC = () => {
         onJump={handleMiniMapJump}
       />
 
-      {/* Canvas with messages */}
-      <div className="absolute inset-0" style={{ paddingLeft: "56px" }}>
+      {/* Canvas with messages - padding left on desktop, bottom on mobile */}
+      <div className="absolute inset-0 pb-16 md:pb-0 md:pl-14">
         <CanvasViewport
           canvasWidth={5000}
           canvasHeight={5000}

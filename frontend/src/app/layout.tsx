@@ -14,6 +14,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link
           href="https://fonts.googleapis.com/css?family=Taviraj:300,400,700,300i,400i,700i&display=swap"
           rel="stylesheet"

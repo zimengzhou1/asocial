@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useEffect } from "react";
 import { useGesture } from "@use-gesture/react";
+import GridBackground from "./GridBackground";
 
 interface CanvasViewportProps {
   children: React.ReactNode;
@@ -31,6 +32,28 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
   const hasDraggedRef = useRef(false);
 
+  // Constrain viewport to canvas boundaries
+  const constrainViewport = (x: number, y: number, scale: number) => {
+    if (!containerRef.current) return { x, y };
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const scaledCanvasWidth = canvasWidth * scale;
+    const scaledCanvasHeight = canvasHeight * scale;
+
+    // Calculate min/max bounds
+    // When zoomed out (canvas smaller than viewport), center it
+    // When zoomed in (canvas larger than viewport), allow panning but keep canvas visible
+    const minX = Math.min(0, rect.width - scaledCanvasWidth);
+    const maxX = Math.max(0, rect.width - scaledCanvasWidth);
+    const minY = Math.min(0, rect.height - scaledCanvasHeight);
+    const maxY = Math.max(0, rect.height - scaledCanvasHeight);
+
+    return {
+      x: Math.max(minX, Math.min(maxX, x)),
+      y: Math.max(minY, Math.min(maxY, y)),
+    };
+  };
+
   // Center canvas on initial load
   useEffect(() => {
     if (!initializedRef.current && containerRef.current) {
@@ -42,6 +65,18 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
       initializedRef.current = true;
     }
   }, [canvasWidth, canvasHeight, onViewportChange]);
+
+  // Prevent browser zoom when focused on canvas
+  useEffect(() => {
+    const preventBrowserZoom = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '0' || e.key === '=')) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', preventBrowserZoom);
+    return () => window.removeEventListener('keydown', preventBrowserZoom);
+  }, []);
 
   // Update transform when parent changes viewport
   useEffect(() => {
@@ -64,8 +99,9 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
           if (Math.abs(mx) > 3 || Math.abs(my) > 3) {
             hasDraggedRef.current = true;
           }
-          setTransform({ x: dx, y: dy, scale });
-          onViewportChange?.(dx, dy, scale);
+          const constrained = constrainViewport(dx, dy, scale);
+          setTransform({ x: constrained.x, y: constrained.y, scale });
+          onViewportChange?.(constrained.x, constrained.y, scale);
         }
       },
 
@@ -89,8 +125,9 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
         const newX = ox - canvasX * newScale;
         const newY = oy - canvasY * newScale;
 
-        setTransform({ x: newX, y: newY, scale: newScale });
-        onViewportChange?.(newX, newY, newScale);
+        const constrained = constrainViewport(newX, newY, newScale);
+        setTransform({ x: constrained.x, y: constrained.y, scale: newScale });
+        onViewportChange?.(constrained.x, constrained.y, newScale);
       },
 
       // Mouse wheel to zoom (desktop)
@@ -115,11 +152,13 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
           const newX = mouseX - canvasX * newScale;
           const newY = mouseY - canvasY * newScale;
 
-          setTransform({ x: newX, y: newY, scale: newScale });
-          onViewportChange?.(newX, newY, newScale);
+          const constrained = constrainViewport(newX, newY, newScale);
+          setTransform({ x: constrained.x, y: constrained.y, scale: newScale });
+          onViewportChange?.(constrained.x, constrained.y, newScale);
         } else {
-          setTransform({ x, y, scale: newScale });
-          onViewportChange?.(x, y, newScale);
+          const constrained = constrainViewport(x, y, newScale);
+          setTransform({ x: constrained.x, y: constrained.y, scale: newScale });
+          onViewportChange?.(constrained.x, constrained.y, newScale);
         }
       },
     },
@@ -127,14 +166,19 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
       target: containerRef,
       drag: {
         from: () => [x, y],
-        filterTaps: true, // Prevent taps from triggering drag
+        filterTaps: true,
+        pointer: { touch: true }, // Enable touch dragging
       },
       pinch: {
         from: () => [scale, 0],
         scaleBounds: { min: 0.5, max: 3 },
+        preventDefault: true, // Prevent browser zoom on pinch
       },
       wheel: {
         preventDefault: true,
+      },
+      eventOptions: {
+        passive: false, // Allow preventDefault to work
       },
     }
   );
@@ -176,6 +220,12 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
     const canvasX = (e.clientX - rect.left - currentX) / currentScale;
     const canvasY = (e.clientY - rect.top - currentY) / currentScale;
 
+    // Check if click is within canvas bounds
+    if (canvasX < 0 || canvasX > canvasWidth || canvasY < 0 || canvasY > canvasHeight) {
+      pointerDownPos.current = null;
+      return;
+    }
+
     console.log('[Click] Screen:', e.clientX, e.clientY);
     console.log('[Click] Rect:', rect.left, rect.top);
     console.log('[Click] Transform:', currentX, currentY, currentScale);
@@ -189,7 +239,7 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
     <div
       ref={containerRef}
       className="relative w-full h-full overflow-hidden bg-white cursor-crosshair"
-      style={{ touchAction: "none" }}
+      style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
       onPointerDown={handlePointerDown}
       onClick={handleClick}
     >
@@ -203,6 +253,10 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
           position: "relative",
         }}
       >
+        <GridBackground
+          canvasWidth={canvasWidth}
+          canvasHeight={canvasHeight}
+        />
         {children}
       </div>
     </div>
