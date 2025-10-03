@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { generateUUID } from "@/utils/uuid";
 
 const REMOVE_DELAY = 5000;
 
@@ -63,7 +64,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: {},
   users: {},
   viewport: { x: 0, y: 0, scale: 1 },
-  localUserId: typeof window !== "undefined" ? crypto.randomUUID() : "",
+  localUserId: typeof window !== "undefined" ? generateUUID() : "",
 
   // Message actions
   addMessage: (messageId, userId, content, x, y) => {
