@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-coverage clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy k8s-setup k8s-deploy k8s-logs k8s-status k8s-tunnel k8s-clean k8s-delete remote-deploy remote-status remote-logs remote-update
+.PHONY: help build test test-unit test-integration test-coverage test-frontend test-all clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy k8s-setup k8s-deploy k8s-logs k8s-status k8s-tunnel k8s-clean k8s-delete remote-deploy remote-status remote-logs remote-update
 
 # Default target
 .DEFAULT_GOAL := help
@@ -59,6 +59,16 @@ test-coverage:
 	go test -v -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
+
+## test-frontend: Run frontend tests
+test-frontend:
+	@echo "Running frontend tests..."
+	@cd frontend && npm test -- --run
+	@echo "Frontend tests complete"
+
+## test-all: Run all tests (backend + frontend)
+test-all: test test-frontend
+	@echo "All tests complete"
 
 ## lint: Run linter (requires golangci-lint)
 lint:
