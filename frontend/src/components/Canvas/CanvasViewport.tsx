@@ -247,11 +247,6 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
       return;
     }
 
-    console.log('[Click] Client:', e.clientX, e.clientY);
-    console.log('[Click] Rect:', rect.left, rect.top, rect.width, rect.height);
-    console.log('[Click] Mouse offset:', mouseX, mouseY);
-    console.log('[Click] Transform:', currentX, currentY, currentScale);
-    console.log('[Click] Canvas:', canvasX, canvasY);
 
     pointerDownPos.current = null;
     onCanvasClick(canvasX, canvasY);
