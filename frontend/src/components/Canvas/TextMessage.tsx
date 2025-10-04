@@ -30,7 +30,8 @@ const TextMessage: React.FC<TextMessageProps> = ({
   // Auto-focus for new local messages
   useEffect(() => {
     if (isLocal && !content && inputRef.current) {
-      inputRef.current.focus();
+      // Prevent browser from scrolling the input into view
+      inputRef.current.focus({ preventScroll: true });
     }
   }, [isLocal, content]);
 
@@ -67,7 +68,6 @@ const TextMessage: React.FC<TextMessageProps> = ({
             color: color,
           }}
           onClick={(e) => e.stopPropagation()}
-          autoFocus
         />
       ) : (
         <p

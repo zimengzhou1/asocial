@@ -223,18 +223,23 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
       return;
     }
 
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    if (!containerRef.current) return;
 
     // Get the current transform values (use viewport prop if available, otherwise local state)
     const currentX = viewport?.x ?? x;
     const currentY = viewport?.y ?? y;
     const currentScale = viewport?.scale ?? scale;
 
-    // Convert screen coordinates to canvas coordinates
-    // Formula: canvasCoord = (screenCoord - containerOffset - translateOffset) / scale
-    const canvasX = (e.clientX - rect.left - currentX) / currentScale;
-    const canvasY = (e.clientY - rect.top - currentY) / currentScale;
+    // Get mouse position relative to the container using getBoundingClientRect
+    // This is the most reliable method across browsers and zoom levels
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Convert container coordinates to canvas coordinates
+    // Formula: canvasCoord = (mouseOffset - translateOffset) / scale
+    const canvasX = (mouseX - currentX) / currentScale;
+    const canvasY = (mouseY - currentY) / currentScale;
 
     // Check if click is within canvas bounds
     if (canvasX < 0 || canvasX > canvasWidth || canvasY < 0 || canvasY > canvasHeight) {
@@ -242,10 +247,6 @@ const CanvasViewport: React.FC<CanvasViewportProps> = ({
       return;
     }
 
-    console.log('[Click] Screen:', e.clientX, e.clientY);
-    console.log('[Click] Rect:', rect.left, rect.top);
-    console.log('[Click] Transform:', currentX, currentY, currentScale);
-    console.log('[Click] Canvas:', canvasX, canvasY);
 
     pointerDownPos.current = null;
     onCanvasClick(canvasX, canvasY);
