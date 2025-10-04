@@ -144,16 +144,28 @@ func (h *WebSocketHandler) handleMessage(sess *melody.Session, data []byte) {
 		}
 		sess.Set("username", newUsername)
 
-		// Get current color from session
+		// Get current color from session with safe type assertion
 		colorVal, _ := sess.Get("color")
-		color, _ := colorVal.(string)
+		color, ok := colorVal.(string)
 		var colorPtr *string
-		if color != "" {
+		if ok && color != "" {
 			colorPtr = &color
 		}
 
+		// Safely get channelID and userID with type assertions
+		channelIDStr, ok := channelID.(string)
+		if !ok {
+			h.logger.Error("Failed to get channelID from session")
+			return
+		}
+		userIDStr, ok := userID.(string)
+		if !ok {
+			h.logger.Error("Failed to get userID from session")
+			return
+		}
+
 		// Update username in Redis (preserve color)
-		if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelID.(string), userID.(string), msg.Username, colorPtr); err != nil {
+		if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelIDStr, userIDStr, msg.Username, colorPtr); err != nil {
 			h.logger.Error("Failed to update username in Redis", "error", err, "user_id", userID)
 		}
 
@@ -171,16 +183,28 @@ func (h *WebSocketHandler) handleMessage(sess *melody.Session, data []byte) {
 		}
 		sess.Set("color", newColor)
 
-		// Get current username from session
+		// Get current username from session with safe type assertion
 		usernameVal, _ := sess.Get("username")
-		username, _ := usernameVal.(string)
+		username, ok := usernameVal.(string)
 		var usernamePtr *string
-		if username != "" {
+		if ok && username != "" {
 			usernamePtr = &username
 		}
 
+		// Safely get channelID and userID with type assertions
+		channelIDStr, ok := channelID.(string)
+		if !ok {
+			h.logger.Error("Failed to get channelID from session")
+			return
+		}
+		userIDStr, ok := userID.(string)
+		if !ok {
+			h.logger.Error("Failed to get userID from session")
+			return
+		}
+
 		// Update color in Redis (preserve username)
-		if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelID.(string), userID.(string), usernamePtr, msg.Color); err != nil {
+		if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelIDStr, userIDStr, usernamePtr, msg.Color); err != nil {
 			h.logger.Error("Failed to update color in Redis", "error", err, "user_id", userID)
 		}
 
@@ -213,8 +237,17 @@ func (h *WebSocketHandler) handleDisconnect(sess *melody.Session) {
 	userIDVal, _ := sess.Get("user_id")
 	channelIDVal, _ := sess.Get("channel_id")
 
-	userID, _ := userIDVal.(string)
-	channelID, _ := channelIDVal.(string)
+	userID, ok := userIDVal.(string)
+	if !ok {
+		h.logger.Warn("Failed to get userID from session on disconnect")
+		return
+	}
+
+	channelID, ok := channelIDVal.(string)
+	if !ok {
+		h.logger.Warn("Failed to get channelID from session on disconnect")
+		return
+	}
 
 	if userID != "" && channelID != "" {
 		ctx := context.Background()

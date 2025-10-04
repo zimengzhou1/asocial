@@ -73,6 +73,91 @@ const Sidebar: React.FC<SidebarProps> = ({
     onColorChange?.(color);
   };
 
+  // Shared username editor component
+  const UsernameSection = () => (
+    <div className="px-4 pt-4 pb-2 border-b border-gray-200">
+      <div className="flex items-center gap-2">
+        {isEditingUsername ? (
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            onKeyDown={handleUsernameKeyDown}
+            onBlur={handleUsernameSubmit}
+            placeholder="Enter your name"
+            className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autoFocus
+            maxLength={20}
+          />
+        ) : (
+          <>
+            <span className="flex-1 text-sm font-medium">
+              {username || "Anonymous"}
+            </span>
+            <button
+              onClick={() => setIsEditingUsername(true)}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              aria-label="Edit username"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                />
+              </svg>
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  // Shared color picker component
+  const ColorPickerSection = () => (
+    <div className="px-4 py-3 border-b border-gray-200">
+      <div className="text-xs text-gray-600 mb-2">Color</div>
+      <div className="relative">
+        <button
+          onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+          className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+          aria-label="Change color"
+        >
+          <div
+            className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
+            style={{ backgroundColor: userColor }}
+          />
+          <span className="text-sm">Change</span>
+        </button>
+
+        {/* Color picker dropdown */}
+        {isColorPickerOpen && (
+          <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-gray-300 rounded shadow-lg z-10">
+            <div className="grid grid-cols-4 gap-2">
+              {COLOR_PALETTE.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => handleColorChange(color)}
+                  className={`w-8 h-8 rounded-full border-2 ${
+                    color === userColor ? 'border-gray-800' : 'border-gray-300'
+                  } hover:scale-110 transition-transform`}
+                  style={{ backgroundColor: color }}
+                  aria-label={`Select color ${color}`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <>
       {/* Collapsed sidebar - bottom on mobile, left on desktop */}
@@ -238,85 +323,10 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {/* Username section */}
-            <div className="px-4 pt-4 pb-2 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                {isEditingUsername ? (
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    onKeyDown={handleUsernameKeyDown}
-                    onBlur={handleUsernameSubmit}
-                    placeholder="Enter your name"
-                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    autoFocus
-                    maxLength={20}
-                  />
-                ) : (
-                  <>
-                    <span className="flex-1 text-sm font-medium">
-                      {username || "Anonymous"}
-                    </span>
-                    <button
-                      onClick={() => setIsEditingUsername(true)}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
-                      aria-label="Edit username"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                        />
-                      </svg>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+            <UsernameSection />
 
             {/* Color picker section */}
-            <div className="px-4 py-3 border-b border-gray-200">
-              <div className="text-xs text-gray-600 mb-2">Color</div>
-              <div className="relative">
-                <button
-                  onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                  aria-label="Change color"
-                >
-                  <div
-                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                    style={{ backgroundColor: userColor }}
-                  />
-                  <span className="text-sm">Change</span>
-                </button>
-
-                {/* Color picker dropdown */}
-                {isColorPickerOpen && (
-                  <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-gray-300 rounded shadow-lg z-10">
-                    <div className="grid grid-cols-4 gap-2">
-                      {COLOR_PALETTE.map((color) => (
-                        <button
-                          key={color}
-                          onClick={() => handleColorChange(color)}
-                          className={`w-8 h-8 rounded-full border-2 ${
-                            color === userColor ? 'border-gray-800' : 'border-gray-300'
-                          } hover:scale-110 transition-transform`}
-                          style={{ backgroundColor: color }}
-                          aria-label={`Select color ${color}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ColorPickerSection />
 
             {/* Users list */}
             <div className="flex-1 overflow-y-auto p-4">
@@ -412,85 +422,10 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {/* Username section */}
-            <div className="px-4 pt-4 pb-2 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                {isEditingUsername ? (
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    onKeyDown={handleUsernameKeyDown}
-                    onBlur={handleUsernameSubmit}
-                    placeholder="Enter your name"
-                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    autoFocus
-                    maxLength={20}
-                  />
-                ) : (
-                  <>
-                    <span className="flex-1 text-sm font-medium">
-                      {username || "Anonymous"}
-                    </span>
-                    <button
-                      onClick={() => setIsEditingUsername(true)}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
-                      aria-label="Edit username"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                        />
-                      </svg>
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+            <UsernameSection />
 
             {/* Color picker section */}
-            <div className="px-4 py-3 border-b border-gray-200">
-              <div className="text-xs text-gray-600 mb-2">Color</div>
-              <div className="relative">
-                <button
-                  onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                  aria-label="Change color"
-                >
-                  <div
-                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                    style={{ backgroundColor: userColor }}
-                  />
-                  <span className="text-sm">Change</span>
-                </button>
-
-                {/* Color picker dropdown */}
-                {isColorPickerOpen && (
-                  <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-gray-300 rounded shadow-lg z-10">
-                    <div className="grid grid-cols-4 gap-2">
-                      {COLOR_PALETTE.map((color) => (
-                        <button
-                          key={color}
-                          onClick={() => handleColorChange(color)}
-                          className={`w-8 h-8 rounded-full border-2 ${
-                            color === userColor ? 'border-gray-800' : 'border-gray-300'
-                          } hover:scale-110 transition-transform`}
-                          style={{ backgroundColor: color }}
-                          aria-label={`Select color ${color}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ColorPickerSection />
 
             {/* Users list */}
             <div className="flex-1 overflow-y-auto p-4">
