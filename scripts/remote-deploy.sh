@@ -25,8 +25,28 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
+echo "🔐 Checking for production secret..."
+if ! kubectl get secret postgres-secret -n asocial &> /dev/null; then
+    echo "❌ ERROR: postgres-secret not found!"
+    echo ""
+    echo "You MUST create the production secret before deploying."
+    echo "Run this command to create it:"
+    echo ""
+    echo "  kubectl create secret generic postgres-secret \\"
+    echo "    --from-literal=POSTGRES_USER=asocial \\"
+    echo "    --from-literal=POSTGRES_PASSWORD=\"\$(openssl rand -base64 32)\" \\"
+    echo "    --from-literal=POSTGRES_DB=asocial \\"
+    echo "    -n asocial"
+    echo ""
+    echo "See k8s/postgres/overlays/prod/README.md for details"
+    exit 1
+fi
+
+echo "✅ Production secret found"
+
 echo "📦 Applying Kubernetes manifests..."
 kubectl apply -f k8s/namespace.yaml
+kubectl apply -k k8s/postgres/overlays/prod
 kubectl apply -f k8s/redis/
 kubectl apply -f k8s/backend/
 kubectl apply -f k8s/frontend/
@@ -34,6 +54,11 @@ kubectl apply -f k8s/ingress.yaml
 
 echo "⏳ Waiting for pods to be ready..."
 echo "   (This may take a few minutes on first deploy while images are pulled)"
+
+kubectl wait --namespace asocial \
+  --for=condition=ready pod \
+  --selector=app=postgres \
+  --timeout=300s || true
 
 kubectl wait --namespace asocial \
   --for=condition=ready pod \

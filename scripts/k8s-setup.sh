@@ -22,12 +22,18 @@ minikube ssh "docker pull ghcr.io/zimengzhou1/asocial-backend:latest"
 minikube ssh "docker pull ghcr.io/zimengzhou1/asocial-frontend:latest"
 
 echo "🔧 Applying Kubernetes manifests..."
+kubectl apply -k k8s/postgres/overlays/dev
 kubectl apply -f k8s/redis/
 kubectl apply -f k8s/backend/
 kubectl apply -f k8s/frontend/
 kubectl apply -f k8s/ingress.yaml
 
 echo "⏳ Waiting for deployments to be ready..."
+kubectl wait --namespace asocial \
+  --for=condition=ready pod \
+  --selector=app=postgres \
+  --timeout=300s
+
 kubectl wait --namespace asocial \
   --for=condition=ready pod \
   --selector=app=redis \

@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-coverage test-frontend test-all clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy k8s-setup k8s-deploy k8s-logs k8s-status k8s-tunnel k8s-clean k8s-delete remote-deploy remote-status remote-logs remote-update
+.PHONY: help build test test-unit test-integration test-coverage test-frontend test-all clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy k8s-setup k8s-deploy k8s-logs k8s-status k8s-tunnel k8s-clean k8s-delete remote-deploy remote-status remote-logs remote-update db-create db-migrate-up db-migrate-down db-reset db-status
 
 # Default target
 .DEFAULT_GOAL := help
@@ -36,6 +36,44 @@ redis-stop:
 	@docker stop asocial-redis-local 2>/dev/null || true
 	@docker rm asocial-redis-local 2>/dev/null || true
 	@echo "Redis stopped"
+
+# Database migration variables
+DB_URL ?= postgres://asocial:asocial_dev_password@localhost:5432/asocial?sslmode=disable
+MIGRATIONS_DIR = migrations
+
+## db-create: Create a new migration file (usage: make db-create name=create_users_table)
+db-create:
+	@if [ -z "$(name)" ]; then \
+		echo "Error: name is required. Usage: make db-create name=create_users_table"; \
+		exit 1; \
+	fi
+	@echo "Creating migration: $(name)"
+	@migrate create -ext sql -dir $(MIGRATIONS_DIR) -seq $(name)
+	@echo "Migration files created in $(MIGRATIONS_DIR)/"
+
+## db-migrate-up: Run all pending migrations
+db-migrate-up:
+	@echo "Running migrations..."
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" up
+	@echo "Migrations complete"
+
+## db-migrate-down: Rollback last migration
+db-migrate-down:
+	@echo "Rolling back last migration..."
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" down 1
+	@echo "Rollback complete"
+
+## db-reset: Reset database (down all + up all)
+db-reset:
+	@echo "Resetting database..."
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" drop -f
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" up
+	@echo "Database reset complete"
+
+## db-status: Show current migration status
+db-status:
+	@echo "Current migration status:"
+	@migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" version
 
 ## test: Run all tests
 test:
@@ -145,10 +183,11 @@ check: fmt vet test
 k8s-setup:
 	@./scripts/k8s-setup.sh
 
-## k8s-deploy: Apply Kubernetes manifests (without full setup)
+## k8s-deploy: Apply Kubernetes manifests for development (minikube)
 k8s-deploy:
-	@echo "Applying Kubernetes manifests..."
+	@echo "Applying Kubernetes manifests for development..."
 	kubectl apply -f k8s/namespace.yaml
+	kubectl apply -k k8s/postgres/overlays/dev
 	kubectl apply -f k8s/redis/
 	kubectl apply -f k8s/backend/
 	kubectl apply -f k8s/frontend/
@@ -202,3 +241,31 @@ remote-logs:
 ## remote-update: Update remote deployment with latest images
 remote-update:
 	@./scripts/remote-update.sh
+
+## remote-secret-create: Create production database secret (interactive)
+remote-secret-create:
+	@echo "⚠️  Creating production database secret"
+	@echo ""
+	@echo "This will generate a STRONG random password for production PostgreSQL"
+	@echo ""
+	@read -p "Continue? (y/N) " -n 1 -r; \
+	echo; \
+	if [[ ! $$REPLY =~ ^[Yy]$$ ]]; then \
+		echo "Cancelled"; \
+		exit 1; \
+	fi
+	@POSTGRES_PASSWORD=$$(openssl rand -base64 32); \
+	echo ""; \
+	echo "Generated password: $$POSTGRES_PASSWORD"; \
+	echo ""; \
+	echo "⚠️  SAVE THIS PASSWORD TO YOUR PASSWORD MANAGER NOW!"; \
+	echo "   You will need it to run migrations."; \
+	echo ""; \
+	read -p "Press Enter after you've saved the password..." dummy; \
+	kubectl create secret generic postgres-secret \
+		--from-literal=POSTGRES_USER=asocial \
+		--from-literal=POSTGRES_PASSWORD="$$POSTGRES_PASSWORD" \
+		--from-literal=POSTGRES_DB=asocial \
+		-n asocial; \
+	echo ""; \
+	echo "✅ Secret created successfully"

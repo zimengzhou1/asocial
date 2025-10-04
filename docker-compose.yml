@@ -32,6 +32,12 @@ services:
       dockerfile: go.Dockerfile
     environment:
       REDIS_ADDR: redis:6379
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: asocial
+      DB_USER: asocial
+      DB_PASSWORD: asocial_dev_password
+      DB_SSLMODE: disable
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/ready`)"
@@ -42,6 +48,7 @@ services:
       - ./config.yaml:/app/config.yaml
     depends_on:
       - redis
+      - postgres
 
   redis:
     image: redis:7-alpine
@@ -51,5 +58,22 @@ services:
     volumes:
       - redis-data:/data
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: asocial
+      POSTGRES_USER: asocial
+      POSTGRES_PASSWORD: asocial_dev_password
+    ports:
+      - "5432:5432" # Exposed for local development
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asocial"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   redis-data:
+  postgres-data:

@@ -1,2 +1,11 @@
 docs/PLANNING.md
+docs/authentication.md
+docs/DATABASE.md
 bin/*
+
+# Production secrets - never commit these
+k8s/**/overlays/prod/secret*.yaml
+k8s/**/overlays/prod/*.env
+**/secrets-prod/
+.env.prod
+

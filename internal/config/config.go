@@ -9,8 +9,9 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server ServerConfig `mapstructure:"server"`
-	Redis  RedisConfig  `mapstructure:"redis"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Redis    RedisConfig    `mapstructure:"redis"`
+	Database DatabaseConfig `mapstructure:"database"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -28,6 +29,16 @@ type RedisConfig struct {
 	Channel  string `mapstructure:"channel"`
 }
 
+// DatabaseConfig holds database configuration
+type DatabaseConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	DBName   string `mapstructure:"dbname"`
+	SSLMode  string `mapstructure:"sslmode"`
+}
+
 // Load loads configuration from file and environment variables
 func Load(configPath string) (*Config, error) {
 	v := viper.New()
@@ -40,6 +51,12 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("redis.password", "")
 	v.SetDefault("redis.db", 0)
 	v.SetDefault("redis.channel", "chat:messages")
+	v.SetDefault("database.host", "localhost")
+	v.SetDefault("database.port", 5432)
+	v.SetDefault("database.user", "asocial")
+	v.SetDefault("database.password", "asocial_dev_password")
+	v.SetDefault("database.dbname", "asocial")
+	v.SetDefault("database.sslmode", "disable")
 
 	// Read config file
 	if configPath != "" {
@@ -60,6 +77,12 @@ func Load(configPath string) (*Config, error) {
 	v.BindEnv("server.port", "SERVER_PORT")
 	v.BindEnv("redis.addr", "REDIS_ADDR")
 	v.BindEnv("redis.password", "REDIS_PASSWORD")
+	v.BindEnv("database.host", "DB_HOST")
+	v.BindEnv("database.port", "DB_PORT")
+	v.BindEnv("database.user", "DB_USER")
+	v.BindEnv("database.password", "DB_PASSWORD")
+	v.BindEnv("database.dbname", "DB_NAME")
+	v.BindEnv("database.sslmode", "DB_SSLMODE")
 
 	// Read config file if exists
 	if err := v.ReadInConfig(); err != nil {
