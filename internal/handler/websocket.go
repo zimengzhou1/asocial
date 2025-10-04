@@ -53,16 +53,32 @@ func (h *WebSocketHandler) handleConnect(sess *melody.Session) {
 		return
 	}
 
-	// Store user ID and channel ID in session
+	// Get optional username and color from query parameters
+	username := sess.Request.URL.Query().Get("username")
+	color := sess.Request.URL.Query().Get("color")
+
+	var usernamePtr *string
+	if username != "" {
+		usernamePtr = &username
+	}
+
+	var colorPtr *string
+	if color != "" {
+		colorPtr = &color
+	}
+
+	// Store user ID, username, color, and channel ID in session
 	// For now, all users join the "default" channel
 	channelID := "default"
 	sess.Set("user_id", userID)
+	sess.Set("username", username)
+	sess.Set("color", color)
 	sess.Set("channel_id", channelID)
 
 	ctx := context.Background()
 
-	// Add user to Redis presence set
-	if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelID, userID); err != nil {
+	// Add user to Redis presence set with username and color
+	if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelID, userID, usernamePtr, colorPtr); err != nil {
 		h.logger.Error("Failed to add user to channel", "error", err, "user_id", userID)
 	}
 
@@ -77,8 +93,8 @@ func (h *WebSocketHandler) handleConnect(sess *melody.Session) {
 		h.logger.Debug("Sent user sync", "user_id", userID, "user_count", len(users))
 	}
 
-	// Publish user joined event
-	joinMsg := domain.NewUserJoinedMessage(channelID, userID)
+	// Publish user joined event with username and color
+	joinMsg := domain.NewUserJoinedMessage(channelID, userID, usernamePtr, colorPtr)
 	if err := h.service.PublishMessage(ctx, joinMsg); err != nil {
 		h.logger.Error("Failed to publish join event", "error", err, "user_id", userID)
 	}
@@ -98,10 +114,16 @@ func (h *WebSocketHandler) handleMessage(sess *melody.Session, data []byte) {
 		return
 	}
 
-	// Get user ID from session
+	// Get user ID and channel ID from session
 	userID, exists := sess.Get("user_id")
 	if !exists {
 		h.logger.Warn("Message from session without user ID")
+		return
+	}
+
+	channelID, exists := sess.Get("channel_id")
+	if !exists {
+		h.logger.Warn("Message from session without channel ID")
 		return
 	}
 
@@ -111,15 +133,70 @@ func (h *WebSocketHandler) handleMessage(sess *melody.Session, data []byte) {
 		return
 	}
 
+	// Handle username_changed messages specially - update Redis and session
+	if msg.Type == domain.MessageTypeUsernameChanged {
+		ctx := context.Background()
+
+		// Update username in session
+		newUsername := ""
+		if msg.Username != nil {
+			newUsername = *msg.Username
+		}
+		sess.Set("username", newUsername)
+
+		// Get current color from session
+		colorVal, _ := sess.Get("color")
+		color, _ := colorVal.(string)
+		var colorPtr *string
+		if color != "" {
+			colorPtr = &color
+		}
+
+		// Update username in Redis (preserve color)
+		if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelID.(string), userID.(string), msg.Username, colorPtr); err != nil {
+			h.logger.Error("Failed to update username in Redis", "error", err, "user_id", userID)
+		}
+
+		h.logger.Info("Username changed", "user_id", userID, "username", msg.Username)
+	}
+
+	// Handle color_changed messages specially - update Redis and session
+	if msg.Type == domain.MessageTypeColorChanged {
+		ctx := context.Background()
+
+		// Update color in session
+		newColor := ""
+		if msg.Color != nil {
+			newColor = *msg.Color
+		}
+		sess.Set("color", newColor)
+
+		// Get current username from session
+		usernameVal, _ := sess.Get("username")
+		username, _ := usernameVal.(string)
+		var usernamePtr *string
+		if username != "" {
+			usernamePtr = &username
+		}
+
+		// Update color in Redis (preserve username)
+		if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelID.(string), userID.(string), usernamePtr, msg.Color); err != nil {
+			h.logger.Error("Failed to update color in Redis", "error", err, "user_id", userID)
+		}
+
+		h.logger.Info("Color changed", "user_id", userID, "color", msg.Color)
+	}
+
 	payloadLen := 0
 	if msg.Payload != nil {
 		payloadLen = len(*msg.Payload)
 	}
 
-	h.logger.Info("Received message",
+	h.logger.Debug("Received message",
 		"message_id", msg.MessageID,
 		"user_id", msg.UserID,
 		"channel_id", msg.ChannelID,
+		"type", msg.Type,
 		"payload_length", payloadLen,
 	)
 

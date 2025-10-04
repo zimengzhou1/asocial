@@ -1,25 +1,77 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { getUserDisplayName, setUserDisplayName, getUserColor, setUserColor, COLOR_PALETTE } from "@/utils/user";
 
 interface User {
   id: string;
   color: string;
+  username?: string;
 }
 
 interface SidebarProps {
   users: User[];
   currentUserId: string;
   onRecenter: () => void;
+  onUsernameChange?: (username: string) => void;
+  onColorChange?: (color: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
   users,
   currentUserId,
   onRecenter,
+  onUsernameChange,
+  onColorChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [username, setUsername] = useState("");
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [userColor, setUserColorState] = useState("");
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+
+  // Load username and color from localStorage on mount
+  useEffect(() => {
+    const savedUsername = getUserDisplayName();
+    if (savedUsername) {
+      setUsername(savedUsername);
+    }
+
+    const savedColor = getUserColor();
+    if (savedColor) {
+      setUserColorState(savedColor);
+    } else {
+      // Default to first color if none saved
+      setUserColorState(COLOR_PALETTE[0]);
+    }
+  }, []);
+
+  const handleUsernameSubmit = () => {
+    setUserDisplayName(username);
+    setIsEditingUsername(false);
+    // Broadcast username change to other users
+    onUsernameChange?.(username);
+  };
+
+  const handleUsernameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleUsernameSubmit();
+    } else if (e.key === "Escape") {
+      setIsEditingUsername(false);
+      // Reset to saved value
+      const savedUsername = getUserDisplayName();
+      setUsername(savedUsername || "");
+    }
+  };
+
+  const handleColorChange = (color: string) => {
+    setUserColorState(color);
+    setUserColor(color);
+    setIsColorPickerOpen(false);
+    // Broadcast color change to other users
+    onColorChange?.(color);
+  };
 
   return (
     <>
@@ -185,6 +237,87 @@ const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
+            {/* Username section */}
+            <div className="px-4 pt-4 pb-2 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                {isEditingUsername ? (
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    onKeyDown={handleUsernameKeyDown}
+                    onBlur={handleUsernameSubmit}
+                    placeholder="Enter your name"
+                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                    maxLength={20}
+                  />
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium">
+                      {username || "Anonymous"}
+                    </span>
+                    <button
+                      onClick={() => setIsEditingUsername(true)}
+                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      aria-label="Edit username"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                        />
+                      </svg>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Color picker section */}
+            <div className="px-4 py-3 border-b border-gray-200">
+              <div className="text-xs text-gray-600 mb-2">Color</div>
+              <div className="relative">
+                <button
+                  onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  aria-label="Change color"
+                >
+                  <div
+                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
+                    style={{ backgroundColor: userColor }}
+                  />
+                  <span className="text-sm">Change</span>
+                </button>
+
+                {/* Color picker dropdown */}
+                {isColorPickerOpen && (
+                  <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-gray-300 rounded shadow-lg z-10">
+                    <div className="grid grid-cols-4 gap-2">
+                      {COLOR_PALETTE.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => handleColorChange(color)}
+                          className={`w-8 h-8 rounded-full border-2 ${
+                            color === userColor ? 'border-gray-800' : 'border-gray-300'
+                          } hover:scale-110 transition-transform`}
+                          style={{ backgroundColor: color }}
+                          aria-label={`Select color ${color}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Users list */}
             <div className="flex-1 overflow-y-auto p-4">
               <h3 className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
@@ -214,7 +347,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                       style={{ backgroundColor: user.color }}
                     />
                     <span className="text-sm">
-                      {user.id === currentUserId ? "You" : user.id.slice(0, 8)}
+                      {user.id === currentUserId
+                        ? username ? `You (${username})` : "You"
+                        : user.username || user.id.slice(0, 8)}
                     </span>
                   </div>
                 ))}
@@ -276,6 +411,87 @@ const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
+            {/* Username section */}
+            <div className="px-4 pt-4 pb-2 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                {isEditingUsername ? (
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    onKeyDown={handleUsernameKeyDown}
+                    onBlur={handleUsernameSubmit}
+                    placeholder="Enter your name"
+                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                    maxLength={20}
+                  />
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium">
+                      {username || "Anonymous"}
+                    </span>
+                    <button
+                      onClick={() => setIsEditingUsername(true)}
+                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      aria-label="Edit username"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                        />
+                      </svg>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Color picker section */}
+            <div className="px-4 py-3 border-b border-gray-200">
+              <div className="text-xs text-gray-600 mb-2">Color</div>
+              <div className="relative">
+                <button
+                  onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                  aria-label="Change color"
+                >
+                  <div
+                    className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
+                    style={{ backgroundColor: userColor }}
+                  />
+                  <span className="text-sm">Change</span>
+                </button>
+
+                {/* Color picker dropdown */}
+                {isColorPickerOpen && (
+                  <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-gray-300 rounded shadow-lg z-10">
+                    <div className="grid grid-cols-4 gap-2">
+                      {COLOR_PALETTE.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => handleColorChange(color)}
+                          className={`w-8 h-8 rounded-full border-2 ${
+                            color === userColor ? 'border-gray-800' : 'border-gray-300'
+                          } hover:scale-110 transition-transform`}
+                          style={{ backgroundColor: color }}
+                          aria-label={`Select color ${color}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Users list */}
             <div className="flex-1 overflow-y-auto p-4">
               <h3 className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
@@ -305,7 +521,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                       style={{ backgroundColor: user.color }}
                     />
                     <span className="text-sm">
-                      {user.id === currentUserId ? "You" : user.id.slice(0, 8)}
+                      {user.id === currentUserId
+                        ? username ? `You (${username})` : "You"
+                        : user.username || user.id.slice(0, 8)}
                     </span>
                   </div>
                 ))}

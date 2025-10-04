@@ -9,11 +9,20 @@ import (
 type MessageType string
 
 const (
-	MessageTypeChat       MessageType = "chat"
-	MessageTypeUserJoined MessageType = "user_joined"
-	MessageTypeUserLeft   MessageType = "user_left"
-	MessageTypeUserSync   MessageType = "user_sync"
+	MessageTypeChat            MessageType = "chat"
+	MessageTypeUserJoined      MessageType = "user_joined"
+	MessageTypeUserLeft        MessageType = "user_left"
+	MessageTypeUserSync        MessageType = "user_sync"
+	MessageTypeUsernameChanged MessageType = "username_changed"
+	MessageTypeColorChanged    MessageType = "color_changed"
 )
+
+// UserInfo represents a user with ID and optional username and color
+type UserInfo struct {
+	UserID   string  `json:"user_id"`
+	Username *string `json:"username,omitempty"`
+	Color    *string `json:"color,omitempty"`
+}
 
 // Message represents a chat message or presence event
 type Message struct {
@@ -21,9 +30,11 @@ type Message struct {
 	MessageID *string     `json:"message_id,omitempty"`
 	ChannelID string      `json:"channel_id"`
 	UserID    string      `json:"user_id"`
+	Username  *string     `json:"username,omitempty"` // For user_joined and username_changed
+	Color     *string     `json:"color,omitempty"`    // For user_joined and color_changed
 	Payload   *string     `json:"payload,omitempty"`
 	Position  *Position   `json:"position,omitempty"`
-	Users     []string    `json:"users,omitempty"` // For user_sync messages
+	Users     []UserInfo  `json:"users,omitempty"` // For user_sync messages
 	Timestamp int64       `json:"timestamp"`
 }
 
@@ -62,11 +73,13 @@ func NewMessage(messageID, channelID, userID, payload string, position Position)
 }
 
 // NewUserJoinedMessage creates a user joined presence event
-func NewUserJoinedMessage(channelID, userID string) *Message {
+func NewUserJoinedMessage(channelID, userID string, username, color *string) *Message {
 	return &Message{
 		Type:      MessageTypeUserJoined,
 		ChannelID: channelID,
 		UserID:    userID,
+		Username:  username,
+		Color:     color,
 		Timestamp: time.Now().UnixMilli(),
 	}
 }
@@ -82,12 +95,34 @@ func NewUserLeftMessage(channelID, userID string) *Message {
 }
 
 // NewUserSyncMessage creates a user sync message with the list of all users in channel
-func NewUserSyncMessage(channelID string, users []string) *Message {
+func NewUserSyncMessage(channelID string, users []UserInfo) *Message {
 	return &Message{
 		Type:      MessageTypeUserSync,
 		ChannelID: channelID,
 		UserID:    "system",
 		Users:     users,
+		Timestamp: time.Now().UnixMilli(),
+	}
+}
+
+// NewUsernameChangedMessage creates a username changed event
+func NewUsernameChangedMessage(channelID, userID string, username *string) *Message {
+	return &Message{
+		Type:      MessageTypeUsernameChanged,
+		ChannelID: channelID,
+		UserID:    userID,
+		Username:  username,
+		Timestamp: time.Now().UnixMilli(),
+	}
+}
+
+// NewColorChangedMessage creates a color changed event
+func NewColorChangedMessage(channelID, userID string, color *string) *Message {
+	return &Message{
+		Type:      MessageTypeColorChanged,
+		ChannelID: channelID,
+		UserID:    userID,
+		Color:     color,
 		Timestamp: time.Now().UnixMilli(),
 	}
 }
