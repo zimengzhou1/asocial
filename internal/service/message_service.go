@@ -22,10 +22,10 @@ type PubSubClient interface {
 	Subscribe(ctx context.Context, handler func(*domain.Message) error) error
 	HealthCheck(ctx context.Context) error
 	// Presence operations
-	AddUserToChannel(ctx context.Context, channelID, userID string) error
+	AddUserToChannel(ctx context.Context, channelID, userID string, username, color *string) error
 	RemoveUserFromChannel(ctx context.Context, channelID, userID string) error
 	RefreshUserPresence(ctx context.Context, channelID, userID string) error
-	GetChannelUsers(ctx context.Context, channelID string) ([]string, error)
+	GetChannelUsers(ctx context.Context, channelID string) ([]domain.UserInfo, error)
 }
 
 // NewMessageService creates a new message service
@@ -95,8 +95,9 @@ func (s *MessageService) broadcastMessage(msg *domain.Message) error {
 			return false
 		}
 
-		// For presence events (join/leave), send to everyone including sender
-		if msg.Type == domain.MessageTypeUserJoined || msg.Type == domain.MessageTypeUserLeft {
+		// For presence events (join/leave/username_changed/color_changed), send to everyone including sender
+		if msg.Type == domain.MessageTypeUserJoined || msg.Type == domain.MessageTypeUserLeft ||
+		   msg.Type == domain.MessageTypeUsernameChanged || msg.Type == domain.MessageTypeColorChanged {
 			return true
 		}
 

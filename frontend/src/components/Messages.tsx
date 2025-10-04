@@ -20,7 +20,7 @@ const Messages: React.FC = () => {
   const updateMessage = useChatStore((state) => state.updateMessage);
 
   // Initialize WebSocket connection
-  const { sendMessage } = useWebSocket({
+  const { sendMessage, sendUsernameChange, sendColorChange } = useWebSocket({
     onConnect: () => console.log("Connected to chat server"),
     onDisconnect: () => console.log("Disconnected from chat server"),
   });
@@ -68,6 +68,8 @@ const Messages: React.FC = () => {
         users={Object.values(users)}
         currentUserId={localUserId}
         onRecenter={handleRecenter}
+        onUsernameChange={sendUsernameChange}
+        onColorChange={sendColorChange}
       />
 
       {/* Mini Map */}

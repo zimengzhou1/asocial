@@ -1,19 +1,16 @@
 import { create } from "zustand";
 import { generateUUID } from "@/utils/uuid";
+import { getOrCreateUserId, COLOR_PALETTE } from "@/utils/user";
 
 const REMOVE_DELAY = 5000;
 
-// Generate random color for user
+// Generate random color for user (fallback when no color provided)
 const generateColor = (userId: string): string => {
-  const colors = [
-    "#ef4444", "#f59e0b", "#10b981", "#3b82f6",
-    "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"
-  ];
   let hash = 0;
   for (let i = 0; i < userId.length; i++) {
     hash = userId.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return colors[Math.abs(hash) % colors.length];
+  return COLOR_PALETTE[Math.abs(hash) % COLOR_PALETTE.length];
 };
 
 export interface Message {
@@ -30,6 +27,7 @@ export interface Message {
 export interface User {
   id: string;
   color: string;
+  username?: string;
 }
 
 interface Viewport {
@@ -52,7 +50,9 @@ interface ChatState {
   fadeOutMessage: (messageId: string) => void;
 
   // Actions - Users
-  addUser: (userId: string) => void;
+  addUser: (userId: string, username?: string, color?: string) => void;
+  updateUserUsername: (userId: string, username: string) => void;
+  updateUserColor: (userId: string, color: string) => void;
   removeUser: (userId: string) => void;
 
   // Actions - Viewport
@@ -64,7 +64,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: {},
   users: {},
   viewport: { x: 0, y: 0, scale: 1 },
-  localUserId: typeof window !== "undefined" ? generateUUID() : "",
+  localUserId: typeof window !== "undefined" ? getOrCreateUserId() : "",
 
   // Message actions
   addMessage: (messageId, userId, content, x, y) => {
@@ -159,7 +159,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   // User actions
-  addUser: (userId) => {
+  addUser: (userId, username, color) => {
     set((state) => {
       if (state.users[userId]) return state;
 
@@ -168,7 +168,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...state.users,
           [userId]: {
             id: userId,
-            color: generateColor(userId),
+            color: color || generateColor(userId), // Use provided color or generate
+            username,
+          },
+        },
+      };
+    });
+  },
+
+  updateUserUsername: (userId, username) => {
+    set((state) => {
+      if (!state.users[userId]) return state;
+
+      return {
+        users: {
+          ...state.users,
+          [userId]: {
+            ...state.users[userId],
+            username,
+          },
+        },
+      };
+    });
+  },
+
+  updateUserColor: (userId, color) => {
+    set((state) => {
+      if (!state.users[userId]) return state;
+
+      return {
+        users: {
+          ...state.users,
+          [userId]: {
+            ...state.users[userId],
+            color,
           },
         },
       };

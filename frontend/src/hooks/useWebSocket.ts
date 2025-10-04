@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/stores/chatStore";
+import { getUserDisplayName, getUserColor } from "@/utils/user";
+
+interface UserInfo {
+  user_id: string;
+  username?: string;
+  color?: string;
+}
 
 interface WebSocketMessage {
-  type: "chat" | "user_joined" | "user_left" | "user_sync";
+  type: "chat" | "user_joined" | "user_left" | "user_sync" | "username_changed" | "color_changed";
   user_id: string;
   message_id?: string;
   payload?: string;
   position?: { x: number; y: number };
-  users?: string[]; // For user_sync messages
+  users?: UserInfo[]; // For user_sync messages
+  username?: string; // For user_joined and username_changed
+  color?: string; // For user_joined and color_changed
   channel_id: string;
   timestamp: number;
 }
@@ -27,11 +36,15 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   const localUserId = useChatStore((state) => state.localUserId);
   const addMessage = useChatStore((state) => state.addMessage);
   const addUser = useChatStore((state) => state.addUser);
+  const updateUserUsername = useChatStore((state) => state.updateUserUsername);
+  const updateUserColor = useChatStore((state) => state.updateUserColor);
   const removeUser = useChatStore((state) => state.removeUser);
 
   // Use refs for callbacks to avoid recreating the effect
   const addMessageRef = useRef(addMessage);
   const addUserRef = useRef(addUser);
+  const updateUserUsernameRef = useRef(updateUserUsername);
+  const updateUserColorRef = useRef(updateUserColor);
   const removeUserRef = useRef(removeUser);
   const onConnectRef = useRef(onConnect);
   const onDisconnectRef = useRef(onDisconnect);
@@ -41,11 +54,13 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   useEffect(() => {
     addMessageRef.current = addMessage;
     addUserRef.current = addUser;
+    updateUserUsernameRef.current = updateUserUsername;
+    updateUserColorRef.current = updateUserColor;
     removeUserRef.current = removeUser;
     onConnectRef.current = onConnect;
     onDisconnectRef.current = onDisconnect;
     onErrorRef.current = onError;
-  }, [addMessage, addUser, removeUser, onConnect, onDisconnect, onError]);
+  }, [addMessage, addUser, updateUserUsername, updateUserColor, removeUser, onConnect, onDisconnect, onError]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -58,15 +73,25 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
     // Determine WebSocket URL based on environment
     const getWebSocketUrl = () => {
+      const username = getUserDisplayName();
+      const color = getUserColor();
+      const params = new URLSearchParams({ uid: localUserId });
+      if (username) {
+        params.set("username", username);
+      }
+      if (color) {
+        params.set("color", color);
+      }
+
       // In development: use env var or fallback to default
       if (process.env.NODE_ENV === "development") {
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_WS_URL || "ws://localhost:3001/api/chat";
-        return `${backendUrl}?uid=${localUserId}`;
+        return `${backendUrl}?${params.toString()}`;
       }
 
       // In production (Docker): use same host, let Traefik proxy it
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      return `${protocol}//${window.location.host}/api/chat?uid=${localUserId}`;
+      return `${protocol}//${window.location.host}/api/chat?${params.toString()}`;
     };
 
     const wsUrl = getWebSocketUrl();
@@ -91,11 +116,25 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           // Initial sync of all users in channel
           console.log("[WebSocket] 🔄 User sync:", data.users);
           if (data.users) {
-            data.users.forEach((userId) => addUserRef.current(userId));
+            data.users.forEach((userInfo) => {
+              if (typeof userInfo === "string") {
+                // Backwards compatibility: just user ID
+                addUserRef.current(userInfo);
+              } else {
+                // New format: user object with username and color
+                addUserRef.current(userInfo.user_id, userInfo.username, userInfo.color);
+              }
+            });
           }
         } else if (data.type === "user_joined") {
-          console.log("[WebSocket] 👋 User joined:", data.user_id);
-          addUserRef.current(data.user_id);
+          console.log("[WebSocket] 👋 User joined:", data.user_id, data.username, data.color);
+          addUserRef.current(data.user_id, data.username, data.color);
+        } else if (data.type === "username_changed") {
+          console.log("[WebSocket] ✏️ Username changed:", data.user_id, data.username);
+          updateUserUsernameRef.current(data.user_id, data.username || "");
+        } else if (data.type === "color_changed") {
+          console.log("[WebSocket] 🎨 Color changed:", data.user_id, data.color);
+          updateUserColorRef.current(data.user_id, data.color || "");
         } else if (data.type === "user_left") {
           console.log("[WebSocket] 👋 User left:", data.user_id);
           removeUserRef.current(data.user_id);
@@ -153,8 +192,44 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     socketRef.current.send(JSON.stringify(message));
   };
 
+  const sendUsernameChange = (username: string) => {
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+      console.warn("WebSocket is not connected");
+      return;
+    }
+
+    const message: WebSocketMessage = {
+      type: "username_changed",
+      user_id: localUserId,
+      username,
+      channel_id: channelId,
+      timestamp: Date.now(),
+    };
+
+    socketRef.current.send(JSON.stringify(message));
+  };
+
+  const sendColorChange = (color: string) => {
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
+      console.warn("WebSocket is not connected");
+      return;
+    }
+
+    const message: WebSocketMessage = {
+      type: "color_changed",
+      user_id: localUserId,
+      color,
+      channel_id: channelId,
+      timestamp: Date.now(),
+    };
+
+    socketRef.current.send(JSON.stringify(message));
+  };
+
   return {
     isConnected,
     sendMessage,
+    sendUsernameChange,
+    sendColorChange,
   };
 };

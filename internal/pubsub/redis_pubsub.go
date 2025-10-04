@@ -3,6 +3,7 @@ package pubsub
 import (
 	"asocial/internal/domain"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -105,8 +106,14 @@ func (r *RedisPubSub) Close() error {
 	return r.client.Close()
 }
 
-// AddUserToChannel adds a user to a channel's active users set with TTL
-func (r *RedisPubSub) AddUserToChannel(ctx context.Context, channelID, userID string) error {
+// UserData represents user data stored in Redis
+type UserData struct {
+	Username string `json:"username,omitempty"`
+	Color    string `json:"color,omitempty"`
+}
+
+// AddUserToChannel adds a user to a channel's active users set with TTL and optional username and color
+func (r *RedisPubSub) AddUserToChannel(ctx context.Context, channelID, userID string, username, color *string) error {
 	key := fmt.Sprintf("chat:channel:%s:users", channelID)
 	memberKey := fmt.Sprintf("chat:user:%s:%s", channelID, userID)
 
@@ -116,13 +123,36 @@ func (r *RedisPubSub) AddUserToChannel(ctx context.Context, channelID, userID st
 		return err
 	}
 
+	// Store username and color as JSON
+	userData := UserData{}
+	if username != nil && *username != "" {
+		userData.Username = *username
+	}
+	if color != nil && *color != "" {
+		userData.Color = *color
+	}
+
+	var value string
+	// If both are empty, use simple marker for backwards compatibility
+	if userData.Username == "" && userData.Color == "" {
+		value = "1"
+	} else {
+		jsonData, err := json.Marshal(userData)
+		if err != nil {
+			r.logger.Error("Failed to marshal user data", "error", err, "user", userID)
+			value = "1" // Fallback
+		} else {
+			value = string(jsonData)
+		}
+	}
+
 	// Set TTL on the member key (5 minutes, refreshed by heartbeat)
-	if err := r.client.SetEx(ctx, memberKey, "1", 5*time.Minute).Err(); err != nil {
+	if err := r.client.SetEx(ctx, memberKey, value, 5*time.Minute).Err(); err != nil {
 		r.logger.Error("Failed to set TTL for user", "error", err, "user", userID)
 		return err
 	}
 
-	r.logger.Debug("Added user to channel", "channel", channelID, "user", userID)
+	r.logger.Debug("Added user to channel", "channel", channelID, "user", userID, "username", username, "color", color)
 	return nil
 }
 
@@ -161,30 +191,53 @@ func (r *RedisPubSub) RefreshUserPresence(ctx context.Context, channelID, userID
 	return nil
 }
 
-// GetChannelUsers returns all active users in a channel
-func (r *RedisPubSub) GetChannelUsers(ctx context.Context, channelID string) ([]string, error) {
+// GetChannelUsers returns all active users in a channel with their usernames and colors
+func (r *RedisPubSub) GetChannelUsers(ctx context.Context, channelID string) ([]domain.UserInfo, error) {
 	key := fmt.Sprintf("chat:channel:%s:users", channelID)
 
-	users, err := r.client.SMembers(ctx, key).Result()
+	userIDs, err := r.client.SMembers(ctx, key).Result()
 	if err != nil {
 		r.logger.Error("Failed to get channel users", "error", err, "channel", channelID)
 		return nil, err
 	}
 
-	// Clean up users whose TTL has expired
-	for _, userID := range users {
+	// Clean up users whose TTL has expired and collect user info
+	var users []domain.UserInfo
+	for _, userID := range userIDs {
 		memberKey := fmt.Sprintf("chat:user:%s:%s", channelID, userID)
-		exists, err := r.client.Exists(ctx, memberKey).Result()
-		if err != nil || exists == 0 {
+		value, err := r.client.Get(ctx, memberKey).Result()
+		if err != nil {
 			// User's TTL expired, remove from set
 			r.client.SRem(ctx, key, userID)
+			continue
 		}
-	}
 
-	// Get updated list
-	users, err = r.client.SMembers(ctx, key).Result()
-	if err != nil {
-		return nil, err
+		// Parse username and color from value
+		var username *string
+		var color *string
+
+		if value != "1" && value != "" {
+			// Try to parse as JSON
+			var userData UserData
+			if err := json.Unmarshal([]byte(value), &userData); err == nil {
+				// Successfully parsed JSON
+				if userData.Username != "" {
+					username = &userData.Username
+				}
+				if userData.Color != "" {
+					color = &userData.Color
+				}
+			} else {
+				// Old format: just username string
+				username = &value
+			}
+		}
+
+		users = append(users, domain.UserInfo{
+			UserID:   userID,
+			Username: username,
+			Color:    color,
+		})
 	}
 
 	return users, nil
