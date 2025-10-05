@@ -8,26 +8,12 @@ import (
 
 // User represents a user account in the system
 type User struct {
-	ID                 uuid.UUID `json:"id"`
-	Email              string    `json:"email"`
-	Username           string    `json:"username"`
-	ClaimedAnonymousID *string   `json:"claimed_anonymous_id,omitempty"`
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
-	LastSeenAt         time.Time `json:"last_seen_at"`
-}
-
-// OAuthAccount represents a linked OAuth provider account
-type OAuthAccount struct {
-	ID             uuid.UUID  `json:"id"`
-	UserID         uuid.UUID  `json:"user_id"`
-	Provider       string     `json:"provider"` // "github" or "google"
-	ProviderUserID string     `json:"provider_user_id"`
-	AccessToken    *string    `json:"access_token,omitempty"`
-	RefreshToken   *string    `json:"refresh_token,omitempty"`
-	TokenExpiresAt *time.Time `json:"token_expires_at,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	ID         uuid.UUID `json:"id"`
+	Email      string    `json:"email"`
+	Username   string    `json:"username"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	LastSeenAt time.Time `json:"last_seen_at"`
 }
 
 // Room represents a chat room
@@ -54,19 +40,8 @@ type RoomUserSettings struct {
 
 // CreateUserParams contains parameters for creating a new user
 type CreateUserParams struct {
-	Email              string
-	Username           string
-	ClaimedAnonymousID *string
-}
-
-// CreateOAuthAccountParams contains parameters for creating a new OAuth account
-type CreateOAuthAccountParams struct {
-	UserID         uuid.UUID
-	Provider       string
-	ProviderUserID string
-	AccessToken    *string
-	RefreshToken   *string
-	TokenExpiresAt *time.Time
+	Email    string
+	Username string
 }
 
 // CreateRoomParams contains parameters for creating a new room

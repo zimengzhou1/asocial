@@ -1,11 +1,15 @@
 docs/PLANNING.md
 docs/authentication.md
 docs/DATABASE.md
+docs/LOCAL_DEVELOPMENT.md
+k8s/README.md
 bin/*
 
 # Production secrets - never commit these
 k8s/**/overlays/prod/secret*.yaml
 k8s/**/overlays/prod/*.env
+k8s/backend/firebase-secret-prod.yaml
 **/secrets-prod/
 .env.prod
+*.json  # Firebase service account files
 

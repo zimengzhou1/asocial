@@ -40,8 +40,6 @@ func setupTestDB(t *testing.T) *db.DB {
 func cleanupUsers(t *testing.T, database *db.DB) {
 	_, err := database.Exec("DELETE FROM room_user_settings")
 	require.NoError(t, err)
-	_, err = database.Exec("DELETE FROM oauth_accounts")
-	require.NoError(t, err)
 	_, err = database.Exec("DELETE FROM rooms")
 	require.NoError(t, err)
 	_, err = database.Exec("DELETE FROM users")
@@ -77,26 +75,9 @@ func TestUserRepository_Create(t *testing.T) {
 		assert.NotNil(t, user.ID)
 		assert.Equal(t, "test@example.com", user.Email)
 		assert.Equal(t, "testuser", user.Username)
-		assert.Nil(t, user.ClaimedAnonymousID)
 		assert.False(t, user.CreatedAt.IsZero())
 		assert.False(t, user.UpdatedAt.IsZero())
 		assert.False(t, user.LastSeenAt.IsZero())
-	})
-
-	t.Run("create user with claimed anonymous ID", func(t *testing.T) {
-		cleanupUsers(t, database)
-
-		anonymousID := "abc-123-def-456"
-		params := domain.CreateUserParams{
-			Email:              "test2@example.com",
-			Username:           "testuser2",
-			ClaimedAnonymousID: &anonymousID,
-		}
-
-		user, err := repo.Create(ctx, params)
-		require.NoError(t, err)
-		require.NotNil(t, user.ClaimedAnonymousID)
-		assert.Equal(t, anonymousID, *user.ClaimedAnonymousID)
 	})
 
 	t.Run("duplicate email should fail", func(t *testing.T) {

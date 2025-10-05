@@ -44,10 +44,18 @@ spec:
               key: POSTGRES_PASSWORD
         - name: DB_SSLMODE
           value: "disable"
+        - name: FIREBASE_CREDENTIALS_PATH
+          value: "/app/firebase-credentials.json"
+        - name: APP_URL
+          value: "http://localhost"  # Override this in production
         volumeMounts:
         - name: config
           mountPath: /app/config.yaml
           subPath: config.yaml
+        - name: firebase-credentials
+          mountPath: /app/firebase-credentials.json
+          subPath: serviceAccount.json
+          readOnly: true
         livenessProbe:
           httpGet:
             path: /health
@@ -75,3 +83,6 @@ spec:
       - name: config
         configMap:
           name: backend-config
+      - name: firebase-credentials
+        secret:
+          secretName: firebase-credentials

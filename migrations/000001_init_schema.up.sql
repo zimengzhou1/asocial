@@ -6,7 +6,6 @@ CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
     username TEXT UNIQUE NOT NULL,
-    claimed_anonymous_id TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_seen_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -14,24 +13,6 @@ CREATE TABLE users (
 
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_claimed_anonymous_id ON users(claimed_anonymous_id) WHERE claimed_anonymous_id IS NOT NULL;
-
--- OAuth accounts table: links users to OAuth providers
-CREATE TABLE oauth_accounts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider TEXT NOT NULL,
-    provider_user_id TEXT NOT NULL,
-    access_token TEXT,
-    refresh_token TEXT,
-    token_expires_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE(provider, provider_user_id)
-);
-
-CREATE INDEX idx_oauth_accounts_user_id ON oauth_accounts(user_id);
-CREATE INDEX idx_oauth_accounts_provider ON oauth_accounts(provider, provider_user_id);
 
 -- Rooms table: stores chat rooms
 CREATE TABLE rooms (

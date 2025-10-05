@@ -23,19 +23,18 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 // Create creates a new user
 func (r *UserRepository) Create(ctx context.Context, params domain.CreateUserParams) (*domain.User, error) {
 	user := &domain.User{
-		ID:                 uuid.New(),
-		Email:              params.Email,
-		Username:           params.Username,
-		ClaimedAnonymousID: params.ClaimedAnonymousID,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
-		LastSeenAt:         time.Now(),
+		ID:         uuid.New(),
+		Email:      params.Email,
+		Username:   params.Username,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+		LastSeenAt: time.Now(),
 	}
 
 	query := `
-		INSERT INTO users (id, email, username, claimed_anonymous_id, created_at, updated_at, last_seen_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, email, username, claimed_anonymous_id, created_at, updated_at, last_seen_at
+		INSERT INTO users (id, email, username, created_at, updated_at, last_seen_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, email, username, created_at, updated_at, last_seen_at
 	`
 
 	err := r.db.QueryRowContext(
@@ -44,7 +43,6 @@ func (r *UserRepository) Create(ctx context.Context, params domain.CreateUserPar
 		user.ID,
 		user.Email,
 		user.Username,
-		user.ClaimedAnonymousID,
 		user.CreatedAt,
 		user.UpdatedAt,
 		user.LastSeenAt,
@@ -52,7 +50,6 @@ func (r *UserRepository) Create(ctx context.Context, params domain.CreateUserPar
 		&user.ID,
 		&user.Email,
 		&user.Username,
-		&user.ClaimedAnonymousID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.LastSeenAt,
@@ -70,7 +67,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Use
 	user := &domain.User{}
 
 	query := `
-		SELECT id, email, username, claimed_anonymous_id, created_at, updated_at, last_seen_at
+		SELECT id, email, username, created_at, updated_at, last_seen_at
 		FROM users
 		WHERE id = $1
 	`
@@ -79,7 +76,6 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Use
 		&user.ID,
 		&user.Email,
 		&user.Username,
-		&user.ClaimedAnonymousID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.LastSeenAt,
@@ -100,7 +96,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	user := &domain.User{}
 
 	query := `
-		SELECT id, email, username, claimed_anonymous_id, created_at, updated_at, last_seen_at
+		SELECT id, email, username, created_at, updated_at, last_seen_at
 		FROM users
 		WHERE email = $1
 	`
@@ -109,7 +105,6 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		&user.ID,
 		&user.Email,
 		&user.Username,
-		&user.ClaimedAnonymousID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.LastSeenAt,
@@ -130,7 +125,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 	user := &domain.User{}
 
 	query := `
-		SELECT id, email, username, claimed_anonymous_id, created_at, updated_at, last_seen_at
+		SELECT id, email, username, created_at, updated_at, last_seen_at
 		FROM users
 		WHERE username = $1
 	`
@@ -139,7 +134,6 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*d
 		&user.ID,
 		&user.Email,
 		&user.Username,
-		&user.ClaimedAnonymousID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 		&user.LastSeenAt,
@@ -166,22 +160,6 @@ func (r *UserRepository) UpdateLastSeenAt(ctx context.Context, userID uuid.UUID)
 	_, err := r.db.ExecContext(ctx, query, time.Now(), userID)
 	if err != nil {
 		return fmt.Errorf("failed to update last seen: %w", err)
-	}
-
-	return nil
-}
-
-// ClaimAnonymousUser links an anonymous ID to a user account
-func (r *UserRepository) ClaimAnonymousUser(ctx context.Context, userID uuid.UUID, anonymousID string) error {
-	query := `
-		UPDATE users
-		SET claimed_anonymous_id = $1, updated_at = $2
-		WHERE id = $3
-	`
-
-	_, err := r.db.ExecContext(ctx, query, anonymousID, time.Now(), userID)
-	if err != nil {
-		return fmt.Errorf("failed to claim anonymous user: %w", err)
 	}
 
 	return nil
