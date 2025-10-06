@@ -4,9 +4,16 @@ import Link from "next/link";
 export default function Home() {
   return (
     <div className="flex flex-col justify-center items-center h-screen">
-      <div className="absolute top-0 left-0 p-4">
+      {/* Desktop: Top left */}
+      <div className="hidden md:block absolute top-0 left-0 p-4">
         <SideMenu />
       </div>
+
+      {/* Mobile: Bottom center */}
+      <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+        <SideMenu />
+      </div>
+
       <h1 className="text-4xl font-custom mb-4">asocialpage</h1>
       <p
         className="font-custom mb-16 relative w-[max-content]
