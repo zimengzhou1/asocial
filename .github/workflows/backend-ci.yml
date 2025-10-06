@@ -17,6 +17,7 @@ on:
       - 'go.sum'
       - 'go.Dockerfile'
       - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
