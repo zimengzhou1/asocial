@@ -26,6 +26,32 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,6 +61,24 @@ jobs:
         with:
           go-version: '1.22.1'
           cache: true
+
+      - name: Set up database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          # Create database user and database
+          psql -h localhost -U postgres -c "CREATE USER asocial WITH PASSWORD 'asocial_dev_password';"
+          psql -h localhost -U postgres -c "CREATE DATABASE asocial OWNER asocial;"
+
+      - name: Install migrate tool
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/local/bin/migrate
+          migrate -version
+
+      - name: Run database migrations
+        run: |
+          migrate -path migrations -database "postgres://asocial:asocial_dev_password@localhost:5432/asocial?sslmode=disable" up
 
       - name: Run tests
         run: go test -v ./...
