@@ -8,3 +8,15 @@ redis:
   password: ""
   db: 0
   channel: "chat:messages"
+
+database:
+  host: "postgres"  # Use "localhost" for local development
+  port: 5432
+  user: "asocial"
+  password: "asocial_dev_password"
+  dbname: "asocial"
+  sslmode: "disable"  # Use "require" for production
+
+auth:
+  firebase_credentials_path: ""  # Set to path of Firebase service account JSON in production
+  app_url: "http://localhost"

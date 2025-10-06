@@ -161,8 +161,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // User actions
   addUser: (userId, username, color) => {
     set((state) => {
-      if (state.users[userId]) return state;
+      // Update existing user if they exist (handles reconnection with new username)
+      if (state.users[userId]) {
+        return {
+          users: {
+            ...state.users,
+            [userId]: {
+              ...state.users[userId],
+              username: username ?? state.users[userId].username,
+              color: color ?? state.users[userId].color,
+            },
+          },
+        };
+      }
 
+      // Add new user
       return {
         users: {
           ...state.users,

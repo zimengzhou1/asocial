@@ -17,6 +17,12 @@ services:
     build:
       context: ./frontend
       dockerfile: dev.Dockerfile
+      args:
+        NEXT_PUBLIC_BACKEND_URL: http://localhost
+        NEXT_PUBLIC_BACKEND_WS_URL: ws://localhost/api/chat
+        NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyDl_ozuvDLnMOe7tLwY2pk_3BHIutHMHcY
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: asocial-dev-89a09.firebaseapp.com
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: asocial-dev-89a09
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.rcweb.rule=PathPrefix(`/`)"
@@ -30,8 +36,18 @@ services:
     build:
       context: ./
       dockerfile: go.Dockerfile
+    ports:
+      - "3001:3001" # Exposed for local development (when frontend runs outside Docker)
     environment:
       REDIS_ADDR: redis:6379
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: asocial
+      DB_USER: asocial
+      DB_PASSWORD: asocial_dev_password
+      DB_SSLMODE: disable
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-credentials.json
+      APP_URL: http://localhost
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/ready`)"
@@ -40,8 +56,10 @@ services:
       - "traefik.http.services.backend.loadbalancer.server.port=3001"
     volumes:
       - ./config.yaml:/app/config.yaml
+      - ${FIREBASE_CREDENTIALS_FILE:-/Users/zimeng/Home/asocial-dev-89a09-firebase-adminsdk-fbsvc-ff5fc8ef22.json}:/app/firebase-credentials.json:ro
     depends_on:
       - redis
+      - postgres
 
   redis:
     image: redis:7-alpine
@@ -51,5 +69,22 @@ services:
     volumes:
       - redis-data:/data
 
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: asocial
+      POSTGRES_USER: asocial
+      POSTGRES_PASSWORD: asocial_dev_password
+    ports:
+      - "5432:5432" # Exposed for local development
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asocial"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   redis-data:
+  postgres-data:

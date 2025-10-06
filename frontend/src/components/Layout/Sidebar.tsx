@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getUserDisplayName, setUserDisplayName, getUserColor, setUserColor, COLOR_PALETTE } from "@/utils/user";
+import { useAuthStore } from "@/stores/authStore";
+import LoginButton from "@/components/Auth/LoginButton";
+import UserProfile from "@/components/Auth/UserProfile";
 
 interface User {
   id: string;
@@ -30,12 +33,27 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [userColor, setUserColorState] = useState("");
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const { isAuthenticated, backendUser } = useAuthStore();
+
+  // Prevent hydration mismatch by only rendering auth-dependent content after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Load username and color from localStorage on mount
   useEffect(() => {
-    const savedUsername = getUserDisplayName();
-    if (savedUsername) {
-      setUsername(savedUsername);
+    if (!mounted) return;
+
+    // For authenticated users, use backend username
+    if (isAuthenticated && backendUser) {
+      setUsername(backendUser.username);
+    } else {
+      // For anonymous users, use localStorage
+      const savedUsername = getUserDisplayName();
+      if (savedUsername) {
+        setUsername(savedUsername);
+      }
     }
 
     const savedColor = getUserColor();
@@ -45,7 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       // Default to first color if none saved
       setUserColorState(COLOR_PALETTE[0]);
     }
-  }, []);
+  }, [isAuthenticated, backendUser, mounted]);
 
   const handleUsernameSubmit = () => {
     setUserDisplayName(username);
@@ -77,7 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const UsernameSection = () => (
     <div className="px-4 pt-4 pb-2 border-b border-gray-200">
       <div className="flex items-center gap-2">
-        {isEditingUsername ? (
+        {isEditingUsername && !isAuthenticated ? (
           <input
             type="text"
             value={username}
@@ -94,67 +112,92 @@ const Sidebar: React.FC<SidebarProps> = ({
             <span className="flex-1 text-sm font-medium">
               {username || "Anonymous"}
             </span>
-            <button
-              onClick={() => setIsEditingUsername(true)}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
-              aria-label="Edit username"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            {!isAuthenticated && (
+              <button
+                onClick={() => setIsEditingUsername(true)}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                aria-label="Edit username"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                />
-              </svg>
-            </button>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                  />
+                </svg>
+              </button>
+            )}
           </>
         )}
       </div>
+      {isAuthenticated && (
+        <p className="text-xs text-gray-500 mt-1">
+          Change username in Account section below
+        </p>
+      )}
     </div>
   );
 
   // Shared color picker component
   const ColorPickerSection = () => (
     <div className="px-4 py-3 border-b border-gray-200">
-      <div className="text-xs text-gray-600 mb-2">Color</div>
-      <div className="relative">
-        <button
-          onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-          className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-          aria-label="Change color"
-        >
-          <div
-            className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-            style={{ backgroundColor: userColor }}
-          />
-          <span className="text-sm">Change</span>
-        </button>
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-gray-600">Color</div>
+        <div className="relative">
+          <button
+            onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+            className="flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+            aria-label="Change color"
+          >
+            <div
+              className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
+              style={{ backgroundColor: userColor }}
+            />
+            <span className="text-sm">Change</span>
+          </button>
 
-        {/* Color picker dropdown */}
-        {isColorPickerOpen && (
-          <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-gray-300 rounded shadow-lg z-10">
-            <div className="grid grid-cols-4 gap-2">
-              {COLOR_PALETTE.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => handleColorChange(color)}
-                  className={`w-8 h-8 rounded-full border-2 ${
-                    color === userColor ? 'border-gray-800' : 'border-gray-300'
-                  } hover:scale-110 transition-transform`}
-                  style={{ backgroundColor: color }}
-                  aria-label={`Select color ${color}`}
-                />
-              ))}
+          {/* Color picker dropdown */}
+          {isColorPickerOpen && (
+            <div className="absolute top-full right-0 mt-1 p-2 bg-white border border-gray-300 rounded shadow-lg z-10">
+              <div className="grid grid-cols-4 gap-2">
+                {COLOR_PALETTE.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => handleColorChange(color)}
+                    className={`w-8 h-8 rounded-full border-2 ${
+                      color === userColor ? 'border-gray-800' : 'border-gray-300'
+                    } hover:scale-110 transition-transform`}
+                    style={{ backgroundColor: color }}
+                    aria-label={`Select color ${color}`}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+    </div>
+  );
+
+  // Shared auth section component
+  const AuthSection = () => (
+    <div className="px-4 py-3 border-b border-gray-200">
+      <div className="text-xs text-gray-600 mb-2">Account</div>
+      {!mounted ? (
+        <div className="px-4 py-2 text-xs font-custom text-gray-500">
+          Loading...
+        </div>
+      ) : isAuthenticated ? (
+        <UserProfile />
+      ) : (
+        <LoginButton />
+      )}
     </div>
   );
 
@@ -164,7 +207,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       {!isOpen && (
         <>
           {/* Mobile: Bottom bar */}
-          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-300 shadow-lg z-40 flex items-center justify-around py-2 px-4">
+          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-300 shadow-lg z-50 flex items-center justify-around py-2 px-4">
             <button
               onClick={() => setIsOpen(true)}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -224,7 +267,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Desktop: Left sidebar */}
-          <div className="hidden md:flex fixed left-0 top-0 h-full bg-white border-r border-gray-300 shadow-lg z-40 flex-col items-center py-4 w-14">
+          <div className="hidden md:flex fixed left-0 top-0 h-full bg-white border-r border-gray-300 shadow-lg z-50 flex-col items-center py-4 w-14">
             <button
               onClick={() => setIsOpen(true)}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -290,14 +333,14 @@ const Sidebar: React.FC<SidebarProps> = ({
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-30"
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
             onClick={() => setIsOpen(false)}
           />
 
           {/* Mobile: Bottom sheet */}
-          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-300 shadow-lg z-40 max-h-[70vh] flex flex-col rounded-t-xl">
+          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-300 shadow-lg z-[60] max-h-[80vh] flex flex-col rounded-t-xl">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
               <Link href="/" className="text-lg font-custom hover:underline">
                 asocial
               </Link>
@@ -322,52 +365,58 @@ const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
-            {/* Username section */}
-            <UsernameSection />
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto">
+              {/* Username section */}
+              <UsernameSection />
 
-            {/* Color picker section */}
-            <ColorPickerSection />
+              {/* Color picker section */}
+              <ColorPickerSection />
 
-            {/* Users list */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <h3 className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
-                Users ({users.length})
-              </h3>
-              <div className="space-y-2">
-                {users.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50"
+              {/* Users list */}
+              <div className="px-4 py-3 border-b border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: user.color }}
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                     />
-                    <span className="text-sm">
-                      {user.id === currentUserId
-                        ? username ? `You (${username})` : "You"
-                        : user.username || user.id.slice(0, 8)}
-                    </span>
-                  </div>
-                ))}
+                  </svg>
+                  Users ({users.length})
+                </h3>
+                <div className="space-y-2">
+                  {users.map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50"
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: user.color }}
+                      />
+                      <span className="text-sm">
+                        {user.id === currentUserId
+                          ? username ? `You (${username})` : "You"
+                          : user.username || user.id.slice(0, 8)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Auth section at bottom */}
+              <AuthSection />
             </div>
 
-            {/* Actions */}
-            <div className="p-4 border-t border-gray-200">
+            {/* Actions - fixed at bottom */}
+            <div className="p-4 border-t border-gray-200 flex-shrink-0">
               <button
                 onClick={() => {
                   onRecenter();
@@ -394,7 +443,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Desktop: Left sidebar */}
-          <div className="hidden md:flex fixed left-0 top-0 h-full bg-white border-r border-gray-300 shadow-lg z-40 w-64 flex-col">
+          <div className="hidden md:flex fixed left-0 top-0 h-full bg-white border-r border-gray-300 shadow-lg z-[60] w-64 flex-col">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <Link href="/" className="text-lg font-custom hover:underline">
@@ -427,43 +476,50 @@ const Sidebar: React.FC<SidebarProps> = ({
             {/* Color picker section */}
             <ColorPickerSection />
 
-            {/* Users list */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <h3 className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
-                Users ({users.length})
-              </h3>
-              <div className="space-y-2">
-                {users.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50"
+            {/* Users list with fixed header */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="px-4 pt-3 pb-2 border-b border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-600 flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: user.color }}
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                     />
-                    <span className="text-sm">
-                      {user.id === currentUserId
-                        ? username ? `You (${username})` : "You"
-                        : user.username || user.id.slice(0, 8)}
-                    </span>
-                  </div>
-                ))}
+                  </svg>
+                  Users ({users.length})
+                </h3>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="space-y-2">
+                  {users.map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50"
+                    >
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: user.color }}
+                      />
+                      <span className="text-sm">
+                        {user.id === currentUserId
+                          ? username ? `You (${username})` : "You"
+                          : user.username || user.id.slice(0, 8)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
+
+            {/* Auth section at bottom */}
+            <AuthSection />
 
             {/* Actions */}
             <div className="p-4 border-t border-gray-200">

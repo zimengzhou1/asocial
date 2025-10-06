@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: asocial
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      initContainers:
+      - name: migrate
+        image: migrate/migrate:v4.17.0
+        command:
+          - migrate
+          - -path=/migrations
+          - -database
+          - postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+          - up
+        env:
+        - name: DB_HOST
+          value: "postgres"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: DB_SSLMODE
+          value: "disable"
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+          readOnly: true
+      containers:
+      - name: backend
+        image: ghcr.io/zimengzhou1/asocial-backend:latest
+        ports:
+        - containerPort: 3001
+          name: http
+        env:
+        - name: REDIS_ADDR
+          value: "redis:6379"
+        - name: DB_HOST
+          value: "postgres"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: DB_SSLMODE
+          value: "disable"
+        - name: FIREBASE_CREDENTIALS_PATH
+          value: "/app/firebase-credentials.json"
+        - name: APP_URL
+          value: "http://localhost"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+        - name: firebase-credentials
+          mountPath: /app/firebase-credentials.json
+          subPath: serviceAccount.json
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+      volumes:
+      - name: config
+        configMap:
+          name: backend-config
+      - name: firebase-credentials
+        secret:
+          secretName: firebase-credentials
+      - name: migrations
+        configMap:
+          name: db-migrations

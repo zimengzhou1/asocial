@@ -97,7 +97,7 @@ func (s *MessageService) broadcastMessage(msg *domain.Message) error {
 
 		// For presence events (join/leave/username_changed/color_changed), send to everyone including sender
 		if msg.Type == domain.MessageTypeUserJoined || msg.Type == domain.MessageTypeUserLeft ||
-		   msg.Type == domain.MessageTypeUsernameChanged || msg.Type == domain.MessageTypeColorChanged {
+			msg.Type == domain.MessageTypeUsernameChanged || msg.Type == domain.MessageTypeColorChanged {
 			return true
 		}
 

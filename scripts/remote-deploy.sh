@@ -25,15 +25,53 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
-echo "📦 Applying Kubernetes manifests..."
+echo "🔐 Checking for required secrets..."
+MISSING_SECRETS=false
+
+if ! kubectl get secret firebase-credentials -n asocial &> /dev/null; then
+    echo "❌ ERROR: firebase-credentials secret not found!"
+    MISSING_SECRETS=true
+fi
+
+if ! kubectl get secret postgres-secret -n asocial &> /dev/null; then
+    echo "❌ ERROR: postgres-secret not found!"
+    MISSING_SECRETS=true
+fi
+
+if [ "$MISSING_SECRETS" = true ]; then
+    echo ""
+    echo "You MUST create the production secrets before deploying."
+    echo ""
+    echo "Run the automated setup script:"
+    echo "  make remote-secrets"
+    echo ""
+    echo "Or manually create secrets (see k8s/README.md)"
+    exit 1
+fi
+
+echo "✅ Production secrets found"
+
+echo "🔧 Creating database migrations ConfigMap..."
+kubectl create configmap db-migrations \
+  --from-file=migrations/ \
+  --namespace=asocial \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "📦 Applying Kubernetes manifests (prod overlay)..."
 kubectl apply -f k8s/namespace.yaml
+kubectl apply -k k8s/postgres/overlays/prod
 kubectl apply -f k8s/redis/
-kubectl apply -f k8s/backend/
-kubectl apply -f k8s/frontend/
+kubectl apply -k k8s/backend/overlays/prod
+kubectl apply -k k8s/frontend/overlays/prod
 kubectl apply -f k8s/ingress.yaml
 
 echo "⏳ Waiting for pods to be ready..."
 echo "   (This may take a few minutes on first deploy while images are pulled)"
+
+kubectl wait --namespace asocial \
+  --for=condition=ready pod \
+  --selector=app=postgres \
+  --timeout=300s || true
 
 kubectl wait --namespace asocial \
   --for=condition=ready pod \

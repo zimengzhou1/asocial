@@ -1,12 +1,24 @@
+"use client";
+
 import Link from "next/link";
 import React from "react";
+import { useAuthStore } from "@/stores/authStore";
+import LoginButton from "./Auth/LoginButton";
+import UserProfile from "./Auth/UserProfile";
 
-const MyComponent: React.FC = () => {
+const SideMenu: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuthStore();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <ul className="space-y-1">
       <li>
-        <details className="group [&_summary::-webkit-details-marker]:hidden">
-          <summary className="flex cursor-pointer items-center justify-between rounded-lg px-4 py-2">
+        <details className="group overflow-hidden rounded-lg bg-white [&_summary::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer items-center justify-between px-4 py-2">
             <span className=" font-custom mr-2"> asocialpage </span>
 
             <span className="shrink-0 transition duration-300 group-open:-rotate-180">
@@ -25,7 +37,7 @@ const MyComponent: React.FC = () => {
             </span>
           </summary>
 
-          <ul className="">
+          <ul className="bg-white">
             <li>
               <Link
                 href="/"
@@ -51,6 +63,19 @@ const MyComponent: React.FC = () => {
                 about
               </a>
             </li>
+
+            {/* Auth Section */}
+            <li className="border-t border-gray-200 mt-2 pt-2">
+              {!mounted || isLoading ? (
+                <div className="px-4 py-2 text-xs font-custom text-gray-500">
+                  Loading...
+                </div>
+              ) : isAuthenticated ? (
+                <UserProfile />
+              ) : (
+                <LoginButton />
+              )}
+            </li>
           </ul>
         </details>
       </li>
@@ -58,4 +83,4 @@ const MyComponent: React.FC = () => {
   );
 };
 
-export default MyComponent;
+export default SideMenu;

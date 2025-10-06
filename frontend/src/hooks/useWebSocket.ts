@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/stores/chatStore";
+import { useAuthStore } from "@/stores/authStore";
 import { getUserDisplayName, getUserColor } from "@/utils/user";
 
 interface UserInfo {
@@ -34,6 +35,9 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   const socketRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const localUserId = useChatStore((state) => state.localUserId);
+  const firebaseToken = useAuthStore((state) => state.firebaseToken);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const backendUser = useAuthStore((state) => state.backendUser);
   const addMessage = useChatStore((state) => state.addMessage);
   const addUser = useChatStore((state) => state.addUser);
   const updateUserUsername = useChatStore((state) => state.updateUserUsername);
@@ -73,7 +77,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
     // Determine WebSocket URL based on environment
     const getWebSocketUrl = () => {
-      const username = getUserDisplayName();
+      // Prioritize authenticated username over localStorage
+      const username = isAuthenticated && backendUser
+        ? backendUser.username
+        : getUserDisplayName();
       const color = getUserColor();
       const params = new URLSearchParams({ uid: localUserId });
       if (username) {
@@ -81,6 +88,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       }
       if (color) {
         params.set("color", color);
+      }
+      // Add Firebase token if authenticated
+      if (firebaseToken) {
+        params.set("token", firebaseToken);
       }
 
       // In development: use env var or fallback to default
@@ -101,20 +112,20 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     socketRef.current = socket;
 
     socket.onopen = () => {
-      console.log("[WebSocket] ✅ Connected successfully");
+      console.log("[WebSocket] Connected successfully");
       setIsConnected(true);
       onConnectRef.current?.();
     };
 
     socket.onmessage = (event) => {
-      console.log("[WebSocket] 📨 Message received");
+      console.log("[WebSocket] Message received");
       try {
         const data: WebSocketMessage = JSON.parse(event.data);
 
         // Handle different message types
         if (data.type === "user_sync") {
           // Initial sync of all users in channel
-          console.log("[WebSocket] 🔄 User sync:", data.users);
+          console.log("[WebSocket] User sync:", data.users);
           if (data.users) {
             data.users.forEach((userInfo) => {
               if (typeof userInfo === "string") {
@@ -127,16 +138,16 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
             });
           }
         } else if (data.type === "user_joined") {
-          console.log("[WebSocket] 👋 User joined:", data.user_id, data.username, data.color);
+          console.log("[WebSocket] User joined:", data.user_id, data.username, data.color);
           addUserRef.current(data.user_id, data.username, data.color);
         } else if (data.type === "username_changed") {
-          console.log("[WebSocket] ✏️ Username changed:", data.user_id, data.username);
+          console.log("[WebSocket] Username changed:", data.user_id, data.username);
           updateUserUsernameRef.current(data.user_id, data.username || "");
         } else if (data.type === "color_changed") {
-          console.log("[WebSocket] 🎨 Color changed:", data.user_id, data.color);
+          console.log("[WebSocket] Color changed:", data.user_id, data.color);
           updateUserColorRef.current(data.user_id, data.color || "");
         } else if (data.type === "user_left") {
-          console.log("[WebSocket] 👋 User left:", data.user_id);
+          console.log("[WebSocket] User left:", data.user_id);
           removeUserRef.current(data.user_id);
         } else if (data.type === "chat") {
           // Handle chat message
@@ -146,17 +157,17 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
           }
         }
       } catch (error) {
-        console.error("[WebSocket] ❌ Failed to parse message:", error);
+        console.error("[WebSocket] Failed to parse message:", error);
       }
     };
 
     socket.onerror = (error) => {
-      console.error("[WebSocket] ❌ Error:", error);
+      console.error("[WebSocket] Error:", error);
       onErrorRef.current?.(error);
     };
 
     socket.onclose = (event) => {
-      console.log("[WebSocket] ⚠️ Connection closed:", {
+      console.log("[WebSocket] Connection closed:", {
         code: event.code,
         reason: event.reason,
         wasClean: event.wasClean,
@@ -171,7 +182,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         socket.close(1000, "Component unmounting");
       }
     };
-  }, [localUserId, channelId]); // Only reconnect when userId or channelId changes
+  }, [localUserId, channelId, firebaseToken, isAuthenticated, backendUser]); // Reconnect when userId, channelId, or auth state changes
 
   const sendMessage = (messageId: string, content: string, x: number, y: number) => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {

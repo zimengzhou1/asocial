@@ -22,6 +22,20 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Build args for Next.js environment variables (with defaults for local dev)
+ARG NEXT_PUBLIC_BACKEND_URL=http://localhost
+ARG NEXT_PUBLIC_BACKEND_WS_URL=ws://localhost/api/chat
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+
+# Set as environment variables for Next.js build
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+ENV NEXT_PUBLIC_BACKEND_WS_URL=$NEXT_PUBLIC_BACKEND_WS_URL
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY
+ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID
+
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.

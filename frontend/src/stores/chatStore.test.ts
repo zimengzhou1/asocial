@@ -53,15 +53,15 @@ describe("ChatStore", () => {
       expect(users["user-123"].color).toBeTruthy(); // Should have generated color
     });
 
-    it("should not overwrite existing user", () => {
+    it("should update existing user when added again", () => {
       const { addUser } = useChatStore.getState();
 
       addUser("user-123", "Alice", "#ef4444");
-      addUser("user-123", "Bob", "#10b981"); // Try to overwrite
+      addUser("user-123", "Bob", "#10b981"); // Update existing user
 
       const users = useChatStore.getState().users;
-      expect(users["user-123"].username).toBe("Alice"); // Should remain Alice
-      expect(users["user-123"].color).toBe("#ef4444");
+      expect(users["user-123"].username).toBe("Bob"); // Should be updated to Bob
+      expect(users["user-123"].color).toBe("#10b981");
     });
 
     it("should update user username", () => {

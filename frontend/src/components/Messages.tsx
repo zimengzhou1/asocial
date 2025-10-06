@@ -84,7 +84,7 @@ const Messages: React.FC = () => {
       />
 
       {/* Canvas with messages - padding left on desktop, bottom on mobile */}
-      <div className="absolute inset-0 pb-16 md:pb-0 md:pl-14">
+      <div className="absolute inset-0 pb-16 md:pb-0 md:pl-14 z-0">
         <CanvasViewport
           canvasWidth={5000}
           canvasHeight={5000}

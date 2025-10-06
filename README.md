@@ -29,15 +29,6 @@ make k8s-tunnel
 # Access the app at http://localhost
 ```
 
-**Other K8s commands:**
-
-```bash
-make k8s-status        # View pod status
-make k8s-logs          # Tail logs from all pods
-make k8s-clean         # Stop cluster (keeps data)
-make k8s-delete        # Delete cluster entirely
-```
-
 ### Running with k3s (Production - Remote Server)
 
 Deploy to a remote server and expose via Cloudflare Tunnel (free, automatic HTTPS).
@@ -65,21 +56,6 @@ make remote-deploy
 # Setup Cloudflare Tunnel (on server)
 ssh your-server
 sudo bash scripts/remote-tunnel-setup.sh
-```
-
-**Management:**
-
-```bash
-make remote-status     # Show pod status
-make remote-logs       # View logs
-make remote-update     # Deploy latest images
-```
-
-**Redeployment workflow:**
-
-```bash
-git push              # Triggers CI to build images
-make remote-update    # Pull and restart pods
 ```
 
 ### Running with Docker Compose
@@ -118,80 +94,6 @@ make run
 # Start frontend
 cd frontend && npm run dev
 ```
-
-## API Documentation
-
-### WebSocket Endpoint
-
-#### `GET /api/chat`
-
-Upgrades HTTP connection to WebSocket for real-time bidirectional communication.
-
-**Query Parameters:**
-
-- `user_id` (required): Unique identifier for the user
-- `channel_id` (optional): Channel to join (default: "default")
-
-**Simplified Example:**
-
-```javascript
-const ws = new WebSocket(
-  "ws://localhost/api/chat?user_id=user123&channel_id=default"
-);
-
-ws.onopen = () => {
-  console.log("Connected");
-};
-
-ws.onmessage = (event) => {
-  const message = JSON.parse(event.data);
-  console.log("Received:", message);
-};
-
-// Send a message
-const message = {
-  message_id: crypto.randomUUID(),
-  channel_id: "default",
-  user_id: "user123",
-  payload: "Hello, World!",
-  position: { x: 100, y: 200 },
-  timestamp: Date.now(),
-};
-ws.send(JSON.stringify(message));
-```
-
-**Message Format:**
-
-```typescript
-interface Message {
-  type: "chat" | "user_joined" | "user_left" | "user_sync"; // Message type
-  message_id?: string; // Unique message identifier (chat only)
-  channel_id: string; // Channel name
-  user_id: string; // Sender user ID
-  payload?: string; // Message content (chat only)
-  position?: Position; // Canvas position (chat only)
-  users?: string[]; // User list (user_sync only)
-  timestamp: number; // Unix timestamp (ms)
-}
-
-interface Position {
-  x: number; // X coordinate on canvas
-  y: number; // Y coordinate on canvas
-}
-```
-
-**Message Types:**
-
-- `chat`: User-sent chat message with content and position
-- `user_joined`: Broadcast when a user connects (presence event)
-- `user_left`: Broadcast when a user disconnects (presence event)
-- `user_sync`: Sent to new users with current channel user list
-
-### Health Check Endpoints
-
-#### `GET /health` : **Liveness probe** - checks if the application is running.
-
-#### `GET /ready` : **Readiness probe** - checks if the application can accept traffic (Redis connection healthy).
 
 ## Configuration
 

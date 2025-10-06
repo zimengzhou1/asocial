@@ -1,4 +1,4 @@
-FROM golang:1.22.1 AS builder
+FROM golang:1.25 AS builder
 
 RUN mkdir -p /app
 WORKDIR /app
@@ -17,5 +17,6 @@ RUN apk update && apk add --no-cache ca-certificates
 RUN mkdir -p /app
 WORKDIR /app
 COPY --from=builder /app/server /app/server
+COPY --from=builder /app/migrations /app/migrations
 
 ENTRYPOINT ["/app/server"]

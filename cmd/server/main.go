@@ -1,9 +1,13 @@
 package server
 
 import (
+	"asocial/internal/auth"
 	"asocial/internal/config"
+	"asocial/internal/db"
 	"asocial/internal/handler"
+	"asocial/internal/middleware"
 	"asocial/internal/pubsub"
+	"asocial/internal/repository"
 	"asocial/internal/service"
 	"context"
 	"log/slog"
@@ -41,6 +45,37 @@ func Run() {
 		"redis_channel", cfg.Redis.Channel,
 	)
 
+	// Initialize database connection
+	dbCfg := db.Config{
+		Host:     cfg.Database.Host,
+		Port:     cfg.Database.Port,
+		User:     cfg.Database.User,
+		Password: cfg.Database.Password,
+		DBName:   cfg.Database.DBName,
+		SSLMode:  cfg.Database.SSLMode,
+	}
+	database, err := db.New(dbCfg, logger)
+	if err != nil {
+		logger.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(database.DB)
+	roomRepo := repository.NewRoomRepository(database.DB)
+	settingsRepo := repository.NewRoomUserSettingsRepository(database.DB)
+
+	// Initialize Firebase
+	firebaseClient, err := auth.InitializeFirebase(context.Background(), cfg.Auth.FirebaseCredentialsPath)
+	if err != nil {
+		logger.Error("Failed to initialize Firebase", "error", err)
+		os.Exit(1)
+	}
+
+	// Initialize Firebase auth service
+	firebaseService := auth.NewFirebaseService(firebaseClient, userRepo, logger)
+
 	// Initialize Melody (WebSocket manager)
 	m := melody.New()
 	m.Config.MaxMessageSize = int64(cfg.Server.MaxMessageSize)
@@ -75,19 +110,60 @@ func Run() {
 	// Initialize handlers
 	wsHandler := handler.NewWebSocketHandler(m, msgService, logger)
 	healthHandler := handler.NewHealthHandler(msgService, logger)
+	isDev := os.Getenv("ENVIRONMENT") != "production"
+	authHandler := handler.NewAuthHandler(firebaseService, logger, cfg.Auth.AppURL, isDev)
+	roomHandler := handler.NewRoomHandler(roomRepo, settingsRepo, userRepo, logger)
 
 	// Setup Gin router
 	router := gin.Default()
 
-	// Register routes
+	// CORS middleware for local development
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
+	// Register health and debug routes
 	router.GET("/health", healthHandler.HandleLiveness)
 	router.GET("/ready", healthHandler.HandleReadiness)
-	router.GET("/api/chat", wsHandler.HandleUpgrade)
 	router.GET("/api/debug/goroutines", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"goroutines": runtime.NumGoroutine(),
 		})
 	})
+
+	// Register auth routes
+	authGroup := router.Group("/api/auth")
+	{
+		// Public routes
+		authGroup.POST("/check-username", authHandler.HandleCheckUsername)
+
+		// Protected auth routes (middleware auto-creates user on first call)
+		authGroup.GET("/me", middleware.AuthMiddleware(firebaseService, logger), authHandler.HandleMe)
+		authGroup.POST("/logout", middleware.AuthMiddleware(firebaseService, logger), authHandler.HandleLogout)
+		authGroup.PATCH("/username", middleware.AuthMiddleware(firebaseService, logger), authHandler.HandleUpdateUsername)
+		authGroup.DELETE("/account", middleware.AuthMiddleware(firebaseService, logger), authHandler.HandleDeleteAccount)
+	}
+
+	// Register room routes:
+	roomGroup := router.Group("/api/rooms")
+	{
+		roomGroup.GET("/public", roomHandler.HandleListPublicRooms)
+		roomGroup.GET("/:slug", middleware.OptionalAuthMiddleware(firebaseService, logger), roomHandler.HandleGetRoom)
+		roomGroup.POST("/:slug/join", middleware.AuthMiddleware(firebaseService, logger), roomHandler.HandleJoinRoom)
+  }
+
+	// Register WebSocket route (optionally authenticated)
+	router.GET("/api/chat", middleware.OptionalAuthMiddleware(firebaseService, logger), wsHandler.HandleUpgrade)
 
 	// Create HTTP server
 	addr := ":" + cfg.Server.Port
