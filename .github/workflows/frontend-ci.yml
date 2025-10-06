@@ -108,8 +108,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            NEXT_PUBLIC_BACKEND_URL=http://localhost
-            NEXT_PUBLIC_BACKEND_WS_URL=ws://localhost/api/chat
+            NEXT_PUBLIC_BACKEND_URL=https://asocial.page
+            NEXT_PUBLIC_BACKEND_WS_URL=wss://asocial.page/api/chat
             NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.FIREBASE_PROD_API_KEY }}
             NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_PROD_AUTH_DOMAIN }}
             NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROD_PROJECT_ID }}
