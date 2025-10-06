@@ -16,13 +16,9 @@ spec:
       containers:
       - name: frontend
         image: ghcr.io/zimengzhou1/asocial-frontend:latest
-        imagePullPolicy: Always
         ports:
         - containerPort: 3000
           name: http
-        envFrom:
-        - configMapRef:
-            name: frontend-config
         livenessProbe:
           httpGet:
             path: /

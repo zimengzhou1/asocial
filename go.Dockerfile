@@ -17,5 +17,6 @@ RUN apk update && apk add --no-cache ca-certificates
 RUN mkdir -p /app
 WORKDIR /app
 COPY --from=builder /app/server /app/server
+COPY --from=builder /app/migrations /app/migrations
 
 ENTRYPOINT ["/app/server"]

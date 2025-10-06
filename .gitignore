@@ -2,7 +2,11 @@ docs/PLANNING.md
 docs/authentication.md
 docs/DATABASE.md
 docs/LOCAL_DEVELOPMENT.md
-k8s/README.md
+docs/FIREBASE_SETUP.md
+docs/GITHUB_SECRETS.md
+docs/KUBECTL_CONTEXTS.md
+**/README.md
+!/README*
 bin/*
 
 # Production secrets - never commit these

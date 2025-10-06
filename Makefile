@@ -1,4 +1,4 @@
-.PHONY: help build test test-unit test-integration test-coverage test-frontend test-all clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy k8s-setup k8s-deploy k8s-logs k8s-status k8s-tunnel k8s-clean k8s-delete remote-deploy remote-status remote-logs remote-update db-create db-migrate-up db-migrate-down db-reset db-status
+.PHONY: help build test test-unit test-integration test-coverage test-frontend test-all clean docker-build docker-up docker-down docker-logs run dev lint fmt vet tidy k8s-setup k8s-setup-local k8s-deploy k8s-logs k8s-status k8s-tunnel k8s-clean k8s-delete remote-deploy remote-status remote-logs remote-update db-create db-migrate-up db-migrate-down db-reset db-status
 
 # Default target
 .DEFAULT_GOAL := help
@@ -179,18 +179,38 @@ docker-restart: docker-down docker-up
 check: fmt vet test
 	@echo "All checks passed"
 
+## k8s-secrets-dev: Setup secrets for development (minikube)
+k8s-secrets-dev:
+	@./scripts/setup-secrets-dev.sh
+
 ## k8s-setup: Setup and deploy to local Kubernetes (minikube)
 k8s-setup:
 	@./scripts/k8s-setup.sh
 
+## k8s-setup-local: Setup and deploy using locally built images
+k8s-setup-local:
+	@USE_LOCAL_IMAGES=true ./scripts/k8s-setup.sh
+
 ## k8s-deploy: Apply Kubernetes manifests for development (minikube)
 k8s-deploy:
 	@echo "Applying Kubernetes manifests for development..."
+	@CURRENT_CONTEXT=$$(kubectl config current-context); \
+	if [ "$$CURRENT_CONTEXT" != "minikube" ]; then \
+		echo "⚠️  ERROR: Current context is '$$CURRENT_CONTEXT', not 'minikube'"; \
+		echo "This command is for local development only."; \
+		echo "Switch context: kubectl config use-context minikube"; \
+		exit 1; \
+	fi
+	@echo "✅ Deploying to minikube context (dev overlay)"
+	kubectl create configmap db-migrations \
+		--from-file=migrations/ \
+		--namespace=asocial \
+		--dry-run=client -o yaml | kubectl apply -f -
 	kubectl apply -f k8s/namespace.yaml
 	kubectl apply -k k8s/postgres/overlays/dev
 	kubectl apply -f k8s/redis/
-	kubectl apply -f k8s/backend/
-	kubectl apply -f k8s/frontend/
+	kubectl apply -k k8s/backend/overlays/dev
+	kubectl apply -k k8s/frontend/overlays/dev
 	kubectl apply -f k8s/ingress.yaml
 	@echo "Manifests applied"
 
@@ -200,12 +220,21 @@ k8s-logs:
 
 ## k8s-status: Show status of all Kubernetes resources
 k8s-status:
-	@echo "Kubernetes Resources:"
-	@echo ""
-	@kubectl get pods,svc,ingress -n asocial
+	@CURRENT_CONTEXT=$$(kubectl config current-context); \
+	echo "Current context: $$CURRENT_CONTEXT"; \
+	echo ""; \
+	echo "Kubernetes Resources:"; \
+	echo ""; \
+	kubectl get pods,svc,ingress -n asocial
 
 ## k8s-tunnel: Start minikube tunnel (run in separate terminal)
 k8s-tunnel:
+	@CURRENT_CONTEXT=$$(kubectl config current-context); \
+	if [ "$$CURRENT_CONTEXT" != "minikube" ]; then \
+		echo "⚠️  ERROR: Current context is '$$CURRENT_CONTEXT', not 'minikube'"; \
+		echo "Switch context: kubectl config use-context minikube"; \
+		exit 1; \
+	fi
 	@echo "Starting minikube tunnel..."
 	@echo "Keep this running and access app at http://localhost"
 	minikube tunnel
@@ -225,6 +254,10 @@ k8s-delete:
 	else \
 		echo "Cancelled"; \
 	fi
+
+## remote-secrets: Setup secrets for production (k3s)
+remote-secrets:
+	@./scripts/setup-secrets-prod.sh
 
 ## remote-deploy: Deploy to remote k3s cluster
 remote-deploy:

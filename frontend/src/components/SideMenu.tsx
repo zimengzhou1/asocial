@@ -1,7 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import React from "react";
+import { useAuthStore } from "@/stores/authStore";
+import LoginButton from "./Auth/LoginButton";
+import UserProfile from "./Auth/UserProfile";
 
-const MyComponent: React.FC = () => {
+const SideMenu: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuthStore();
+
   return (
     <ul className="space-y-1">
       <li>
@@ -51,6 +58,19 @@ const MyComponent: React.FC = () => {
                 about
               </a>
             </li>
+
+            {/* Auth Section */}
+            <li className="border-t border-gray-200 mt-2 pt-2">
+              {isLoading ? (
+                <div className="px-4 py-2 text-xs font-custom text-gray-500">
+                  Loading...
+                </div>
+              ) : isAuthenticated ? (
+                <UserProfile />
+              ) : (
+                <LoginButton />
+              )}
+            </li>
           </ul>
         </details>
       </li>
@@ -58,4 +78,4 @@ const MyComponent: React.FC = () => {
   );
 };
 
-export default MyComponent;
+export default SideMenu;

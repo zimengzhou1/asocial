@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "@/stores/chatStore";
+import { useAuthStore } from "@/stores/authStore";
 import { getUserDisplayName, getUserColor } from "@/utils/user";
 
 interface UserInfo {
@@ -34,6 +35,9 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   const socketRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const localUserId = useChatStore((state) => state.localUserId);
+  const firebaseToken = useAuthStore((state) => state.firebaseToken);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const backendUser = useAuthStore((state) => state.backendUser);
   const addMessage = useChatStore((state) => state.addMessage);
   const addUser = useChatStore((state) => state.addUser);
   const updateUserUsername = useChatStore((state) => state.updateUserUsername);
@@ -73,7 +77,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
 
     // Determine WebSocket URL based on environment
     const getWebSocketUrl = () => {
-      const username = getUserDisplayName();
+      // Prioritize authenticated username over localStorage
+      const username = isAuthenticated && backendUser
+        ? backendUser.username
+        : getUserDisplayName();
       const color = getUserColor();
       const params = new URLSearchParams({ uid: localUserId });
       if (username) {
@@ -81,6 +88,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       }
       if (color) {
         params.set("color", color);
+      }
+      // Add Firebase token if authenticated
+      if (firebaseToken) {
+        params.set("token", firebaseToken);
       }
 
       // In development: use env var or fallback to default
@@ -171,7 +182,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         socket.close(1000, "Component unmounting");
       }
     };
-  }, [localUserId, channelId]); // Only reconnect when userId or channelId changes
+  }, [localUserId, channelId, firebaseToken, isAuthenticated, backendUser]); // Reconnect when userId, channelId, or auth state changes
 
   const sendMessage = (messageId: string, content: string, x: number, y: number) => {
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {

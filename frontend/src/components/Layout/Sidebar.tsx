@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { getUserDisplayName, setUserDisplayName, getUserColor, setUserColor, COLOR_PALETTE } from "@/utils/user";
+import { useAuthStore } from "@/stores/authStore";
+import LoginButton from "@/components/Auth/LoginButton";
+import UserProfile from "@/components/Auth/UserProfile";
 
 interface User {
   id: string;
@@ -30,12 +33,19 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [userColor, setUserColorState] = useState("");
   const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const { isAuthenticated, backendUser } = useAuthStore();
 
   // Load username and color from localStorage on mount
   useEffect(() => {
-    const savedUsername = getUserDisplayName();
-    if (savedUsername) {
-      setUsername(savedUsername);
+    // For authenticated users, use backend username
+    if (isAuthenticated && backendUser) {
+      setUsername(backendUser.username);
+    } else {
+      // For anonymous users, use localStorage
+      const savedUsername = getUserDisplayName();
+      if (savedUsername) {
+        setUsername(savedUsername);
+      }
     }
 
     const savedColor = getUserColor();
@@ -45,7 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       // Default to first color if none saved
       setUserColorState(COLOR_PALETTE[0]);
     }
-  }, []);
+  }, [isAuthenticated, backendUser]);
 
   const handleUsernameSubmit = () => {
     setUserDisplayName(username);
@@ -77,7 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const UsernameSection = () => (
     <div className="px-4 pt-4 pb-2 border-b border-gray-200">
       <div className="flex items-center gap-2">
-        {isEditingUsername ? (
+        {isEditingUsername && !isAuthenticated ? (
           <input
             type="text"
             value={username}
@@ -94,28 +104,35 @@ const Sidebar: React.FC<SidebarProps> = ({
             <span className="flex-1 text-sm font-medium">
               {username || "Anonymous"}
             </span>
-            <button
-              onClick={() => setIsEditingUsername(true)}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
-              aria-label="Edit username"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            {!isAuthenticated && (
+              <button
+                onClick={() => setIsEditingUsername(true)}
+                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                aria-label="Edit username"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                />
-              </svg>
-            </button>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                  />
+                </svg>
+              </button>
+            )}
           </>
         )}
       </div>
+      {isAuthenticated && (
+        <p className="text-xs text-gray-500 mt-1">
+          Change username in Account section below
+        </p>
+      )}
     </div>
   );
 
@@ -155,6 +172,14 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
       </div>
+    </div>
+  );
+
+  // Shared auth section component
+  const AuthSection = () => (
+    <div className="px-4 py-3 border-b border-gray-200">
+      <div className="text-xs text-gray-600 mb-2">Account</div>
+      {isAuthenticated ? <UserProfile /> : <LoginButton />}
     </div>
   );
 
@@ -328,6 +353,9 @@ const Sidebar: React.FC<SidebarProps> = ({
             {/* Color picker section */}
             <ColorPickerSection />
 
+            {/* Auth section */}
+            <AuthSection />
+
             {/* Users list */}
             <div className="flex-1 overflow-y-auto p-4">
               <h3 className="text-sm font-semibold text-gray-600 mb-3 flex items-center gap-2">
@@ -426,6 +454,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Color picker section */}
             <ColorPickerSection />
+
+            {/* Auth section */}
+            <AuthSection />
 
             {/* Users list */}
             <div className="flex-1 overflow-y-auto p-4">

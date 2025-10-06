@@ -164,3 +164,31 @@ func (r *UserRepository) UpdateLastSeenAt(ctx context.Context, userID uuid.UUID)
 
 	return nil
 }
+
+// UpdateUsername updates the username for a user
+func (r *UserRepository) UpdateUsername(ctx context.Context, userID uuid.UUID, username string) error {
+	query := `
+		UPDATE users
+		SET username = $1, updated_at = $2
+		WHERE id = $3
+	`
+
+	_, err := r.db.ExecContext(ctx, query, username, time.Now(), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update username: %w", err)
+	}
+
+	return nil
+}
+
+// Delete deletes a user
+func (r *UserRepository) Delete(ctx context.Context, userID uuid.UUID) error {
+	query := `DELETE FROM users WHERE id = $1`
+
+	_, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	return nil
+}

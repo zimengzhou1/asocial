@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: asocial
+
+resources:
+  - ../../base
+
+# Always pull images in production to ensure latest version
+# Use specific SHA tags for production deploys (e.g., sha-abc123)
+patches:
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always
+
+# To deploy a specific version in production:
+# images:
+#   - name: ghcr.io/zimengzhou1/asocial-frontend
+#     newTag: sha-abc123

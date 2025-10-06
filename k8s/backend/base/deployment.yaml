@@ -13,10 +13,44 @@ spec:
       labels:
         app: backend
     spec:
+      initContainers:
+      - name: migrate
+        image: migrate/migrate:v4.17.0
+        command:
+          - migrate
+          - -path=/migrations
+          - -database
+          - postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
+          - up
+        env:
+        - name: DB_HOST
+          value: "postgres"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: DB_SSLMODE
+          value: "disable"
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+          readOnly: true
       containers:
       - name: backend
         image: ghcr.io/zimengzhou1/asocial-backend:latest
-        imagePullPolicy: Always
         ports:
         - containerPort: 3001
           name: http
@@ -47,7 +81,7 @@ spec:
         - name: FIREBASE_CREDENTIALS_PATH
           value: "/app/firebase-credentials.json"
         - name: APP_URL
-          value: "http://localhost"  # Override this in production
+          value: "http://localhost"
         volumeMounts:
         - name: config
           mountPath: /app/config.yaml
@@ -86,3 +120,6 @@ spec:
       - name: firebase-credentials
         secret:
           secretName: firebase-credentials
+      - name: migrations
+        configMap:
+          name: db-migrations

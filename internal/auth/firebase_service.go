@@ -219,3 +219,54 @@ func (s *FirebaseService) generateAvailableUsername(ctx context.Context, baseUse
 	// Fallback to UUID
 	return fmt.Sprintf("%s_%s", baseUsername, uuid.New().String()[:8]), nil
 }
+
+// UpdateUsername updates a user's username
+func (s *FirebaseService) UpdateUsername(ctx context.Context, userID uuid.UUID, newUsername string) error {
+	// Check if user exists
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+	if user == nil {
+		return ErrUserNotFound
+	}
+
+	// Check if new username is available (excluding current user)
+	existingUser, err := s.userRepo.GetByUsername(ctx, newUsername)
+	if err != nil {
+		return fmt.Errorf("failed to check username: %w", err)
+	}
+	if existingUser != nil && existingUser.ID != userID {
+		return ErrUsernameConflict
+	}
+
+	// Update username in database
+	err = s.userRepo.UpdateUsername(ctx, userID, newUsername)
+	if err != nil {
+		return fmt.Errorf("failed to update username: %w", err)
+	}
+
+	s.logger.Info("username updated successfully", "user_id", userID, "new_username", newUsername)
+	return nil
+}
+
+// DeleteUser deletes a user from the system
+func (s *FirebaseService) DeleteUser(ctx context.Context, userID uuid.UUID) error {
+	// Check if user exists
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+	if user == nil {
+		return ErrUserNotFound
+	}
+
+	// Delete from database (CASCADE will handle room_user_settings)
+	err = s.userRepo.Delete(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	s.logger.Info("user deleted successfully", "user_id", userID, "email", user.Email)
+	return nil
+}

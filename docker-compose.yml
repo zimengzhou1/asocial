@@ -17,6 +17,12 @@ services:
     build:
       context: ./frontend
       dockerfile: dev.Dockerfile
+      args:
+        NEXT_PUBLIC_BACKEND_URL: http://localhost
+        NEXT_PUBLIC_BACKEND_WS_URL: ws://localhost/api/chat
+        NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyDl_ozuvDLnMOe7tLwY2pk_3BHIutHMHcY
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: asocial-dev-89a09.firebaseapp.com
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: asocial-dev-89a09
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.rcweb.rule=PathPrefix(`/`)"
@@ -30,6 +36,8 @@ services:
     build:
       context: ./
       dockerfile: go.Dockerfile
+    ports:
+      - "3001:3001" # Exposed for local development (when frontend runs outside Docker)
     environment:
       REDIS_ADDR: redis:6379
       DB_HOST: postgres

@@ -63,6 +63,8 @@ func Run() {
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(database.DB)
+	roomRepo := repository.NewRoomRepository(database.DB)
+	settingsRepo := repository.NewRoomUserSettingsRepository(database.DB)
 
 	// Initialize Firebase
 	firebaseClient, err := auth.InitializeFirebase(context.Background(), cfg.Auth.FirebaseCredentialsPath)
@@ -110,9 +112,25 @@ func Run() {
 	healthHandler := handler.NewHealthHandler(msgService, logger)
 	isDev := os.Getenv("ENVIRONMENT") != "production"
 	authHandler := handler.NewAuthHandler(firebaseService, logger, cfg.Auth.AppURL, isDev)
+	roomHandler := handler.NewRoomHandler(roomRepo, settingsRepo, userRepo, logger)
 
 	// Setup Gin router
 	router := gin.Default()
+
+	// CORS middleware for local development
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
 
 	// Register health and debug routes
 	router.GET("/health", healthHandler.HandleLiveness)
@@ -132,7 +150,17 @@ func Run() {
 		// Protected auth routes (middleware auto-creates user on first call)
 		authGroup.GET("/me", middleware.AuthMiddleware(firebaseService, logger), authHandler.HandleMe)
 		authGroup.POST("/logout", middleware.AuthMiddleware(firebaseService, logger), authHandler.HandleLogout)
+		authGroup.PATCH("/username", middleware.AuthMiddleware(firebaseService, logger), authHandler.HandleUpdateUsername)
+		authGroup.DELETE("/account", middleware.AuthMiddleware(firebaseService, logger), authHandler.HandleDeleteAccount)
 	}
+
+	// Register room routes:
+	roomGroup := router.Group("/api/rooms")
+	{
+		roomGroup.GET("/public", roomHandler.HandleListPublicRooms)
+		roomGroup.GET("/:slug", middleware.OptionalAuthMiddleware(firebaseService, logger), roomHandler.HandleGetRoom)
+		roomGroup.POST("/:slug/join", middleware.AuthMiddleware(firebaseService, logger), roomHandler.HandleJoinRoom)
+  }
 
 	// Register WebSocket route (optionally authenticated)
 	router.GET("/api/chat", middleware.OptionalAuthMiddleware(firebaseService, logger), wsHandler.HandleUpgrade)
