@@ -54,6 +54,7 @@ interface ChatState {
   updateUserUsername: (userId: string, username: string) => void;
   updateUserColor: (userId: string, color: string) => void;
   removeUser: (userId: string) => void;
+  clearUsers: () => void;
 
   // Actions - Viewport
   setViewport: (viewport: Viewport) => void;
@@ -226,6 +227,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const { [userId]: removed, ...rest } = state.users;
       return { users: rest };
     });
+  },
+
+  clearUsers: () => {
+    set({ users: {} });
   },
 
   // Viewport actions

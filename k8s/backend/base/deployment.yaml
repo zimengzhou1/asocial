@@ -82,6 +82,11 @@ spec:
           value: "/app/firebase-credentials.json"
         - name: APP_URL
           value: "http://localhost"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: backend-secret
+              key: jwt-secret
         volumeMounts:
         - name: config
           mountPath: /app/config.yaml

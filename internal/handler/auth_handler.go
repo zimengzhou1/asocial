@@ -4,8 +4,11 @@ import (
 	"asocial/internal/auth"
 	"log/slog"
 	"net/http"
+	"regexp"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
@@ -15,15 +18,17 @@ type AuthHandler struct {
 	logger          *slog.Logger
 	appURL          string
 	isDev           bool
+	jwtSecret       string
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(firebaseService *auth.FirebaseService, logger *slog.Logger, appURL string, isDev bool) *AuthHandler {
+func NewAuthHandler(firebaseService *auth.FirebaseService, logger *slog.Logger, appURL string, isDev bool, jwtSecret string) *AuthHandler {
 	return &AuthHandler{
 		firebaseService: firebaseService,
 		logger:          logger,
 		appURL:          appURL,
 		isDev:           isDev,
+		jwtSecret:       jwtSecret,
 	}
 }
 
@@ -233,5 +238,69 @@ func (h *AuthHandler) HandleDeleteAccount(c *gin.Context) {
 	h.logger.Info("account deleted", "user_id", uid)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Account deleted successfully"})
+}
+
+// AnonymousSessionRequest represents a request for an anonymous session
+type AnonymousSessionRequest struct {
+	ClientID string `json:"client_id" binding:"required"`
+}
+
+// AnonymousSessionResponse contains the session token
+type AnonymousSessionResponse struct {
+	SessionToken string `json:"session_token"`
+	UserID       string `json:"user_id"`
+	ExpiresAt    int64  `json:"expires_at"`
+}
+
+// HandleAnonymousSession issues a session token for anonymous users
+func (h *AuthHandler) HandleAnonymousSession(c *gin.Context) {
+	var req AnonymousSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	// Validate client ID format (prevent injection)
+	if !isValidClientID(req.ClientID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid client_id format"})
+		return
+	}
+
+	// Generate server-controlled user ID
+	userID := "anon-" + uuid.New().String()[:8]
+
+	// Create JWT with short expiration (24 hours)
+	expiresAt := time.Now().Add(24 * time.Hour)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":    userID,
+		"client_id":  req.ClientID,
+		"session_id": uuid.New().String(),
+		"anonymous":  true,
+		"exp":        expiresAt.Unix(),
+		"iat":        time.Now().Unix(),
+	})
+
+	// Sign token with secret key
+	tokenString, err := token.SignedString([]byte(h.jwtSecret))
+	if err != nil {
+		h.logger.Error("Failed to sign JWT", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+		return
+	}
+
+	h.logger.Info("Created anonymous session", "user_id", userID, "client_id", req.ClientID)
+
+	c.JSON(http.StatusOK, AnonymousSessionResponse{
+		SessionToken: tokenString,
+		UserID:       userID,
+		ExpiresAt:    expiresAt.Unix(),
+	})
+}
+
+// isValidClientID validates the client ID format (UUID)
+func isValidClientID(id string) bool {
+	// UUID format (8-4-4-4-12 with hyphens, lowercase hex)
+	match, _ := regexp.MatchString(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`, id)
+	return match && len(id) == 36
 }
 

@@ -61,6 +61,16 @@ func Run() {
 	}
 	defer database.Close()
 
+	// Run database migrations
+	migrationsPath := os.Getenv("MIGRATIONS_PATH")
+	if migrationsPath == "" {
+		migrationsPath = "./migrations" // Default path
+	}
+	if err := database.RunMigrations(migrationsPath); err != nil {
+		logger.Error("Failed to run database migrations", "error", err)
+		os.Exit(1)
+	}
+
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(database.DB)
 	roomRepo := repository.NewRoomRepository(database.DB)
@@ -108,14 +118,18 @@ func Run() {
 	}()
 
 	// Initialize handlers
-	wsHandler := handler.NewWebSocketHandler(m, msgService, logger)
+	wsHandler := handler.NewWebSocketHandler(m, msgService, roomRepo, logger)
 	healthHandler := handler.NewHealthHandler(msgService, logger)
 	isDev := os.Getenv("ENVIRONMENT") != "production"
-	authHandler := handler.NewAuthHandler(firebaseService, logger, cfg.Auth.AppURL, isDev)
+	authHandler := handler.NewAuthHandler(firebaseService, logger, cfg.Auth.AppURL, isDev, cfg.Auth.JWTSecret)
 	roomHandler := handler.NewRoomHandler(roomRepo, settingsRepo, userRepo, logger)
 
-	// Setup Gin router
-	router := gin.Default()
+	// skip noisy health probes
+	router := gin.New()
+	router.Use(
+		gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: []string{"/health", "/ready"}}),
+		gin.Recovery(),
+	)
 
 	// CORS middleware for local development
 	router.Use(func(c *gin.Context) {
@@ -146,6 +160,7 @@ func Run() {
 	{
 		// Public routes
 		authGroup.POST("/check-username", authHandler.HandleCheckUsername)
+		authGroup.POST("/anonymous-session", authHandler.HandleAnonymousSession)
 
 		// Protected auth routes (middleware auto-creates user on first call)
 		authGroup.GET("/me", middleware.AuthMiddleware(firebaseService, logger), authHandler.HandleMe)
@@ -160,10 +175,17 @@ func Run() {
 		roomGroup.GET("/public", roomHandler.HandleListPublicRooms)
 		roomGroup.GET("/:slug", middleware.OptionalAuthMiddleware(firebaseService, logger), roomHandler.HandleGetRoom)
 		roomGroup.POST("/:slug/join", middleware.AuthMiddleware(firebaseService, logger), roomHandler.HandleJoinRoom)
-  }
+	}
 
-	// Register WebSocket route (optionally authenticated)
-	router.GET("/api/chat", middleware.OptionalAuthMiddleware(firebaseService, logger), wsHandler.HandleUpgrade)
+	// Register WebSocket route (requires token - Firebase or anonymous)
+	// We need to wrap Melody's handler with our WebSocket auth middleware
+	wsAuthMiddleware := middleware.WebSocketAuthMiddleware(firebaseService, cfg.Auth.JWTSecret, logger)
+	router.GET("/api/chat", gin.WrapH(wsAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Convert back to Gin context for Melody
+		c, _ := gin.CreateTestContext(w)
+		c.Request = r
+		wsHandler.HandleUpgrade(c)
+	}))))
 
 	// Create HTTP server
 	addr := ":" + cfg.Server.Port

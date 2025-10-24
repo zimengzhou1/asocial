@@ -9,25 +9,34 @@ import { useChatStore } from "@/stores/chatStore";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { generateUUID } from "@/utils/uuid";
 
-const Messages: React.FC = () => {
+interface MessagesProps {
+  roomSlug: string;
+}
+
+const Messages: React.FC<MessagesProps> = ({ roomSlug }) => {
   // Get state from Zustand store
   const messages = useChatStore((state) => state.messages);
   const users = useChatStore((state) => state.users);
   const viewport = useChatStore((state) => state.viewport);
-  const localUserId = useChatStore((state) => state.localUserId);
   const setViewport = useChatStore((state) => state.setViewport);
   const addMessage = useChatStore((state) => state.addMessage);
   const updateMessage = useChatStore((state) => state.updateMessage);
 
-  // Initialize WebSocket connection
-  const { sendMessage, sendUsernameChange, sendColorChange } = useWebSocket({
-    onConnect: () => console.log("Connected to chat server"),
-    onDisconnect: () => console.log("Disconnected from chat server"),
-  });
+  // Initialize WebSocket connection and get server-issued user ID
+  const { sendMessage, sendUsernameChange, sendColorChange, serverUserId } =
+    useWebSocket({
+      channelId: roomSlug,
+      onConnect: () => console.log("Connected to chat server"),
+      onDisconnect: () => console.log("Disconnected from chat server"),
+    });
 
   const handleCanvasClick = (x: number, y: number) => {
+    if (!serverUserId) {
+      console.warn("Cannot create message: server user ID not yet available");
+      return;
+    }
     const messageId = generateUUID();
-    addMessage(messageId, localUserId, "", x, y);
+    addMessage(messageId, serverUserId, "", x, y); // Use server-issued user ID
   };
 
   const handleContentChange = (messageId: string, content: string) => {
@@ -66,7 +75,7 @@ const Messages: React.FC = () => {
       {/* Sidebar */}
       <Sidebar
         users={Object.values(users)}
-        currentUserId={localUserId}
+        currentUserId={serverUserId || ""}
         onRecenter={handleRecenter}
         onUsernameChange={sendUsernameChange}
         onColorChange={sendColorChange}
@@ -101,7 +110,7 @@ const Messages: React.FC = () => {
               x={message.x}
               y={message.y}
               color={message.color}
-              isLocal={message.userId === localUserId}
+              isLocal={message.userId === serverUserId}
               fadeOut={message.fadeOut}
               onContentChange={handleContentChange}
             />

@@ -91,6 +91,31 @@ else
 fi
 
 echo ""
+
+# JWT Secret for anonymous sessions (dev uses a simple fixed secret)
+echo "🔑 Setting up JWT secret for anonymous sessions (DEV)..."
+
+if kubectl get secret backend-secret -n asocial &> /dev/null; then
+    echo "   Secret 'backend-secret' already exists"
+    read -p "   Replace it? (y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        kubectl delete secret backend-secret -n asocial
+        kubectl create secret generic backend-secret \
+            --from-literal=jwt-secret="dev_jwt_secret_do_not_use_in_production_12345" \
+            -n asocial
+        echo "   ✅ Backend secret updated"
+    else
+        echo "   ⏭️  Skipping backend secret"
+    fi
+else
+    kubectl create secret generic backend-secret \
+        --from-literal=jwt-secret="dev_jwt_secret_do_not_use_in_production_12345" \
+        -n asocial
+    echo "   ✅ Backend secret created"
+fi
+
+echo ""
 echo "📋 Verifying secrets..."
 kubectl get secrets -n asocial
 

@@ -12,19 +12,26 @@ import (
 	"github.com/olahol/melody"
 )
 
+// RoomRepository is an interface for room-related database operations
+type RoomRepository interface {
+	GetBySlug(ctx context.Context, slug string) (*domain.Room, error)
+}
+
 // WebSocketHandler handles WebSocket connections and messages
 type WebSocketHandler struct {
-	melody  *melody.Melody
-	service *service.MessageService
-	logger  *slog.Logger
+	melody   *melody.Melody
+	service  *service.MessageService
+	roomRepo RoomRepository
+	logger   *slog.Logger
 }
 
 // NewWebSocketHandler creates a new WebSocket handler
-func NewWebSocketHandler(m *melody.Melody, svc *service.MessageService, logger *slog.Logger) *WebSocketHandler {
+func NewWebSocketHandler(m *melody.Melody, svc *service.MessageService, roomRepo RoomRepository, logger *slog.Logger) *WebSocketHandler {
 	handler := &WebSocketHandler{
-		melody:  m,
-		service: svc,
-		logger:  logger,
+		melody:   m,
+		service:  svc,
+		roomRepo: roomRepo,
+		logger:   logger,
 	}
 
 	// Register Melody event handlers
@@ -46,12 +53,17 @@ func (h *WebSocketHandler) HandleUpgrade(c *gin.Context) {
 
 // handleConnect is called when a new WebSocket connection is established
 func (h *WebSocketHandler) handleConnect(sess *melody.Session) {
-	userID := sess.Request.URL.Query().Get("uid")
-	if userID == "" {
-		h.logger.Warn("Connection without user ID", "remote_addr", sess.Request.RemoteAddr)
-		sess.Close()
+	// Get user ID from authenticated context (set by WebSocket auth middleware)
+	ctx := sess.Request.Context()
+	userID, ok := ctx.Value("user_id").(string)
+	if !ok || userID == "" {
+		h.logger.Warn("Connection without authenticated user_id", "remote_addr", sess.Request.RemoteAddr)
+		sess.CloseWithMsg([]byte(`{"error":"authentication_required"}`))
 		return
 	}
+
+	// Check if anonymous user
+	isAnonymous, _ := ctx.Value("anonymous").(bool)
 
 	// Get optional username and color from query parameters
 	username := sess.Request.URL.Query().Get("username")
@@ -68,14 +80,31 @@ func (h *WebSocketHandler) handleConnect(sess *melody.Session) {
 	}
 
 	// Store user ID, username, color, and channel ID in session
-	// For now, all users join the "default" channel
-	channelID := "default"
+	// Get room slug from query parameter, default to "general" if not provided
+	channelID := sess.Request.URL.Query().Get("room")
+	if channelID == "" {
+		channelID = "general"
+	}
+
+	// Validate that the room exists
+	ctx = context.Background()
+	room, err := h.roomRepo.GetBySlug(ctx, channelID)
+	if err != nil {
+		h.logger.Error("Failed to check room existence", "error", err, "room_slug", channelID)
+		sess.Close()
+		return
+	}
+	if room == nil {
+		h.logger.Warn("Room not found", "room_slug", channelID, "user_id", userID)
+		sess.Close()
+		return
+	}
+
 	sess.Set("user_id", userID)
 	sess.Set("username", username)
 	sess.Set("color", color)
 	sess.Set("channel_id", channelID)
-
-	ctx := context.Background()
+	sess.Set("anonymous", isAnonymous)
 
 	// Add user to Redis presence set with username and color
 	if err := h.service.GetPubSubClient().AddUserToChannel(ctx, channelID, userID, usernamePtr, colorPtr); err != nil {

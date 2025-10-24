@@ -25,7 +25,7 @@ after:bg-black"
         Talk with a keyboard
         <br />
       </p>
-      <Link href="/chat" className="font-custom text-blue-600">
+      <Link href="/chat/general" className="font-custom text-blue-600">
         start chatting
       </Link>
     </div>

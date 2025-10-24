@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 )
 
@@ -84,6 +87,46 @@ func (db *DB) HealthCheck() error {
 
 	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("database health check failed: %w", err)
+	}
+
+	return nil
+}
+
+// RunMigrations runs database migrations from the migrations directory
+func (db *DB) RunMigrations(migrationsPath string) error {
+	db.logger.Info("running database migrations", "path", migrationsPath)
+
+	// Create migration driver
+	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to create migration driver: %w", err)
+	}
+
+	// Create migration instance
+	m, err := migrate.NewWithDatabaseInstance(
+		fmt.Sprintf("file://%s", migrationsPath),
+		"postgres",
+		driver,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create migration instance: %w", err)
+	}
+
+	// Run migrations
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	// Get current version
+	version, dirty, err := m.Version()
+	if err != nil && err != migrate.ErrNilVersion {
+		return fmt.Errorf("failed to get migration version: %w", err)
+	}
+
+	if err == migrate.ErrNilVersion {
+		db.logger.Info("migrations complete", "status", "no migrations applied")
+	} else {
+		db.logger.Info("migrations complete", "version", version, "dirty", dirty)
 	}
 
 	return nil
