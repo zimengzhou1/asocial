@@ -132,7 +132,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         wsUrl = `${protocol}//${window.location.host}/api/chat?${params.toString()}`;
       }
 
-      console.log("[WebSocket] Connecting to:", wsUrl.replace(/token=[^&]+/, 'token=***'));
+      console.log("[WebSocket] Connecting to:", wsUrl.replace(/token=[^&]*(&|$)/g, 'token=***$1'));
 
       const socket = new WebSocket(wsUrl);
       socketRef.current = socket;

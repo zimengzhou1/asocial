@@ -126,15 +126,34 @@ make clean                # Clean build artifacts
 
 ### Running Tests
 
+**Prerequisites:** Tests require PostgreSQL and Redis running locally.
+
 ```bash
+# Start PostgreSQL and Redis
+docker compose up -d postgres redis
+
+# Run migrations (first time only)
+make db-migrate-up
+
+# Run all tests
+make test
+
 # Unit tests only (fast, no dependencies)
 make test-unit
 
-# Integration tests (requires Redis on localhost:6379)
+# Integration tests (requires Redis)
 make test-integration
 
 # All tests with coverage report
 make test-coverage
+
+# Stop services when done
+docker compose down
+```
+
+**Note:** If you have a local PostgreSQL instance running, it may conflict with the Docker container on port 5432. Stop it with:
+```bash
+brew services stop postgresql@16  # or postgresql@15, postgresql
 ```
 
 ## Architecture Documentation

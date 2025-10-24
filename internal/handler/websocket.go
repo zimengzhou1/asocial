@@ -87,7 +87,6 @@ func (h *WebSocketHandler) handleConnect(sess *melody.Session) {
 	}
 
 	// Validate that the room exists
-	ctx = context.Background()
 	room, err := h.roomRepo.GetBySlug(ctx, channelID)
 	if err != nil {
 		h.logger.Error("Failed to check room existence", "error", err, "room_slug", channelID)

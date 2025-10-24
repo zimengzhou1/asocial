@@ -178,14 +178,20 @@ func Run() {
 	}
 
 	// Register WebSocket route (requires token - Firebase or anonymous)
-	// We need to wrap Melody's handler with our WebSocket auth middleware
-	wsAuthMiddleware := middleware.WebSocketAuthMiddleware(firebaseService, cfg.Auth.JWTSecret, logger)
-	router.GET("/api/chat", gin.WrapH(wsAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Convert back to Gin context for Melody
-		c, _ := gin.CreateTestContext(w)
-		c.Request = r
-		wsHandler.HandleUpgrade(c)
-	}))))
+	// Create Gin middleware wrapper for WebSocket auth
+	wsAuthGinMiddleware := func(c *gin.Context) {
+		// Create http.Handler that continues to the next handler
+		wsAuthMiddleware := middleware.WebSocketAuthMiddleware(firebaseService, cfg.Auth.JWTSecret, logger)
+
+		// Call the auth middleware
+		wsAuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Update gin context with authenticated request
+			c.Request = r
+			c.Next()
+		})).ServeHTTP(c.Writer, c.Request)
+	}
+
+	router.GET("/api/chat", wsAuthGinMiddleware, wsHandler.HandleUpgrade)
 
 	// Create HTTP server
 	addr := ":" + cfg.Server.Port
