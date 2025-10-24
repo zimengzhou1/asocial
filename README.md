@@ -17,47 +17,6 @@ Available on: [https://asocial.page](https://asocial.page), works best on deskto
 - **Go 1.22+**: For local development
 - **Node.js 18+**: For frontend development
 
-### Running with Kubernetes (Local - Minikube)
-
-```bash
-# One-time setup: Start minikube and deploy everything
-make k8s-setup
-
-# In a separate terminal, expose services to localhost
-make k8s-tunnel
-
-# Access the app at http://localhost
-```
-
-### Running with k3s (Production - Remote Server)
-
-Deploy to a remote server and expose via Cloudflare Tunnel (free, automatic HTTPS).
-
-**Prerequisites:**
-
-- Remote server with SSH access
-- Cloudflare account + domain on Cloudflare DNS
-- (Optional) Tailscale for easier server access
-
-**Setup:**
-
-```bash
-ssh your-server
-sudo bash scripts/remote-setup.sh  # Installs k3s + Docker + NGINX Ingress
-
-# Configure kubectl on your local machine
-scp your-server:/etc/rancher/k3s/k3s.yaml ~/.kube/k3s-config
-# Edit k3s-config: replace 127.0.0.1 with server IP or Tailscale IP
-export KUBECONFIG=~/.kube/k3s-config
-
-# Deploy application
-make remote-deploy
-
-# Setup Cloudflare Tunnel (on server)
-ssh your-server
-sudo bash scripts/remote-tunnel-setup.sh
-```
-
 ### Running with Docker Compose
 
 ```bash
@@ -78,6 +37,29 @@ make docker-down
 - Health Check: http://localhost/health
 - Traefik Dashboard: http://localhost:8080
 
+### Running with k3s
+
+Deploy to a remote server and expose via Cloudflare Tunnel (free, automatic HTTPS).
+
+**Setup:**
+
+```bash
+ssh your-server
+sudo bash scripts/remote-setup.sh  # Installs k3s + Docker + NGINX Ingress
+
+# Configure kubectl on your local machine
+scp your-server:/etc/rancher/k3s/k3s.yaml ~/.kube/k3s-config
+# Edit k3s-config: replace 127.0.0.1 with server IP or Tailscale IP
+export KUBECONFIG=~/.kube/k3s-config
+
+# Deploy application
+make remote-deploy
+
+# Setup Cloudflare Tunnel (on server)
+ssh your-server
+sudo bash scripts/remote-tunnel-setup.sh
+```
+
 ### Running Locally (No containers)
 
 ```bash
@@ -94,20 +76,6 @@ make run
 # Start frontend
 cd frontend && npm run dev
 ```
-
-## Configuration
-
-### Environment Variables
-
-| Variable                          | Description               | Default         |
-| --------------------------------- | ------------------------- | --------------- |
-| `ASOCIAL_SERVER_PORT`             | Backend HTTP port         | `3001`          |
-| `ASOCIAL_SERVER_MAX_CONNECTIONS`  | Max WebSocket connections | `200`           |
-| `ASOCIAL_SERVER_MAX_MESSAGE_SIZE` | Max message size (bytes)  | `4096`          |
-| `REDIS_ADDR`                      | Redis address             | `redis:6379`    |
-| `ASOCIAL_REDIS_PASSWORD`          | Redis password            | `""`            |
-| `ASOCIAL_REDIS_DB`                | Redis database number     | `0`             |
-| `ASOCIAL_REDIS_CHANNEL`           | Redis pub/sub channel     | `chat:messages` |
 
 ## Development
 
@@ -158,15 +126,34 @@ make clean                # Clean build artifacts
 
 ### Running Tests
 
+**Prerequisites:** Tests require PostgreSQL and Redis running locally.
+
 ```bash
+# Start PostgreSQL and Redis
+docker compose up -d postgres redis
+
+# Run migrations (first time only)
+make db-migrate-up
+
+# Run all tests
+make test
+
 # Unit tests only (fast, no dependencies)
 make test-unit
 
-# Integration tests (requires Redis on localhost:6379)
+# Integration tests (requires Redis)
 make test-integration
 
 # All tests with coverage report
 make test-coverage
+
+# Stop services when done
+docker compose down
+```
+
+**Note:** If you have a local PostgreSQL instance running, it may conflict with the Docker container on port 5432. Stop it with:
+```bash
+brew services stop postgresql@16  # or postgresql@15, postgresql
 ```
 
 ## Architecture Documentation

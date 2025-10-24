@@ -17,9 +17,81 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/olahol/melody"
 )
+
+const testJWTSecret = "test_jwt_secret_for_integration_tests"
+
+// mockRoomRepository is a mock implementation of RoomRepository for testing
+type mockRoomRepository struct{}
+
+func (m *mockRoomRepository) GetBySlug(ctx context.Context, slug string) (*domain.Room, error) {
+	// Return a valid room for any slug in tests
+	return &domain.Room{
+		ID:          uuid.New(),
+		Name:        "Test Room",
+		Slug:        slug,
+		Description: nil,
+		OwnerID:     nil,
+		IsPublic:    true,
+	}, nil
+}
+
+// generateTestJWT generates a test JWT token for anonymous users
+func generateTestJWT(userID string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":    userID,
+		"client_id":  uuid.New().String(),
+		"session_id": uuid.New().String(),
+		"anonymous":  true,
+		"exp":        time.Now().Add(24 * time.Hour).Unix(),
+		"iat":        time.Now().Unix(),
+	})
+	return token.SignedString([]byte(testJWTSecret))
+}
+
+// testAuthMiddleware is a simple auth middleware for testing that validates JWT tokens
+func testAuthMiddleware(c *gin.Context) {
+	tokenString := c.Query("token")
+	if tokenString == "" {
+		c.AbortWithStatus(401)
+		return
+	}
+
+	// Parse and validate the JWT
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(testJWTSecret), nil
+	})
+
+	if err != nil || !token.Valid {
+		c.AbortWithStatus(401)
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		c.AbortWithStatus(401)
+		return
+	}
+
+	userID, ok := claims["user_id"].(string)
+	if !ok || userID == "" {
+		c.AbortWithStatus(401)
+		return
+	}
+
+	// Set user_id in context for the WebSocket handler
+	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "user_id", userID))
+	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "anonymous", true))
+
+	c.Next()
+}
 
 // TestUserSync_TwoUsers tests the full E2E flow of two users connecting and syncing
 func TestUserSync_TwoUsers(t *testing.T) {
@@ -46,8 +118,8 @@ func TestUserSync_TwoUsers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Note: The websocket handler hardcodes channel to "default"
-	channelID := "default"
+	// WebSocket handler defaults to "general" room if not specified
+	channelID := "general"
 
 	// Clean up before and after test - also clean up any stale users
 	cleanup := func() {
@@ -62,7 +134,8 @@ func TestUserSync_TwoUsers(t *testing.T) {
 	// Setup server
 	m := melody.New()
 	msgService := service.NewMessageService(redisPubSub, m, logger)
-	wsHandler := handler.NewWebSocketHandler(m, msgService, logger)
+	mockRoomRepo := &mockRoomRepository{}
+	wsHandler := handler.NewWebSocketHandler(m, msgService, mockRoomRepo, logger)
 
 	// Start subscriber in background
 	go msgService.StartSubscriber(ctx)
@@ -70,7 +143,9 @@ func TestUserSync_TwoUsers(t *testing.T) {
 	// Setup HTTP server
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.GET("/ws", wsHandler.HandleUpgrade)
+
+	// Apply test auth middleware that validates JWT tokens
+	router.GET("/ws", testAuthMiddleware, wsHandler.HandleUpgrade)
 
 	server := httptest.NewServer(router)
 	defer server.Close()
@@ -81,8 +156,13 @@ func TestUserSync_TwoUsers(t *testing.T) {
 	// Connect first user
 	username1 := "Alice"
 	color1 := "#ef4444"
-	ws1URL := fmt.Sprintf("%s/ws?uid=user1&username=%s&color=%s",
+	token1, err := generateTestJWT("user1")
+	if err != nil {
+		t.Fatalf("Failed to generate JWT for user1: %v", err)
+	}
+	ws1URL := fmt.Sprintf("%s/ws?token=%s&username=%s&color=%s",
 		wsURL,
+		url.QueryEscape(token1),
 		url.QueryEscape(username1),
 		url.QueryEscape(color1),
 	)
@@ -118,8 +198,13 @@ func TestUserSync_TwoUsers(t *testing.T) {
 	// Connect second user
 	username2 := "Bob"
 	color2 := "#10b981"
-	ws2URL := fmt.Sprintf("%s/ws?uid=user2&username=%s&color=%s",
+	token2, err := generateTestJWT("user2")
+	if err != nil {
+		t.Fatalf("Failed to generate JWT for user2: %v", err)
+	}
+	ws2URL := fmt.Sprintf("%s/ws?token=%s&username=%s&color=%s",
 		wsURL,
+		url.QueryEscape(token2),
 		url.QueryEscape(username2),
 		url.QueryEscape(color2),
 	)

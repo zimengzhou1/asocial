@@ -135,41 +135,118 @@ if kubectl get secret postgres-secret -n asocial &> /dev/null; then
     read -p "Replace it? This will change the database password! (yes/no) " -r
     if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
         echo "⏭️  Skipping PostgreSQL secret"
+    else
+        kubectl delete secret postgres-secret -n asocial
         echo ""
-        echo "📋 Current secrets:"
-        kubectl get secrets -n asocial
+        echo "Generating strong random password..."
+        POSTGRES_PASSWORD=$(openssl rand -base64 32)
+
         echo ""
-        echo "✅ Setup complete (Firebase only)"
-        exit 0
+        echo "╔════════════════════════════════════════════════════════════════╗"
+        echo "║ ⚠️  SAVE THIS PASSWORD TO YOUR PASSWORD MANAGER NOW!         ║"
+        echo "╚════════════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "PostgreSQL Password:"
+        echo "  $POSTGRES_PASSWORD"
+        echo ""
+        echo "Database Connection String:"
+        echo "  postgres://asocial:$POSTGRES_PASSWORD@postgres:5432/asocial?sslmode=require"
+        echo ""
+        read -p "Press Enter after you've saved the password securely..." dummy
+
+        kubectl create secret generic postgres-secret \
+            --from-literal=POSTGRES_USER=asocial \
+            --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            --from-literal=POSTGRES_DB=asocial \
+            -n asocial
+
+        echo ""
+        echo "✅ PostgreSQL secret created"
     fi
-    kubectl delete secret postgres-secret -n asocial
+else
+    echo ""
+    echo "Generating strong random password..."
+    POSTGRES_PASSWORD=$(openssl rand -base64 32)
+
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════════╗"
+    echo "║ ⚠️  SAVE THIS PASSWORD TO YOUR PASSWORD MANAGER NOW!         ║"
+    echo "╚════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "PostgreSQL Password:"
+    echo "  $POSTGRES_PASSWORD"
+    echo ""
+    echo "Database Connection String:"
+    echo "  postgres://asocial:$POSTGRES_PASSWORD@postgres:5432/asocial?sslmode=require"
+    echo ""
+    read -p "Press Enter after you've saved the password securely..." dummy
+
+    kubectl create secret generic postgres-secret \
+        --from-literal=POSTGRES_USER=asocial \
+        --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+        --from-literal=POSTGRES_DB=asocial \
+        -n asocial
+
+    echo ""
+    echo "✅ PostgreSQL secret created"
 fi
 
 echo ""
-echo "Generating strong random password..."
-POSTGRES_PASSWORD=$(openssl rand -base64 32)
 
+# JWT Secret for anonymous sessions
+echo "🔑 Setting up JWT secret for anonymous sessions (PRODUCTION)..."
 echo ""
-echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║ ⚠️  SAVE THIS PASSWORD TO YOUR PASSWORD MANAGER NOW!         ║"
-echo "╚════════════════════════════════════════════════════════════════╝"
-echo ""
-echo "PostgreSQL Password:"
-echo "  $POSTGRES_PASSWORD"
-echo ""
-echo "Database Connection String:"
-echo "  postgres://asocial:$POSTGRES_PASSWORD@postgres:5432/asocial?sslmode=require"
-echo ""
-read -p "Press Enter after you've saved the password securely..." dummy
 
-kubectl create secret generic postgres-secret \
-    --from-literal=POSTGRES_USER=asocial \
-    --from-literal=POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-    --from-literal=POSTGRES_DB=asocial \
-    -n asocial
+if kubectl get secret backend-secret -n asocial &> /dev/null; then
+    echo "⚠️  Backend secret already exists in production"
+    echo ""
+    read -p "Replace it? This will invalidate all anonymous sessions! (yes/no) " -r
+    if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        echo "⏭️  Skipping JWT secret"
+    else
+        kubectl delete secret backend-secret -n asocial
+        echo ""
+        echo "Generating strong random JWT secret..."
+        JWT_SECRET=$(openssl rand -hex 32)
 
-echo ""
-echo "✅ PostgreSQL secret created"
+        echo ""
+        echo "╔════════════════════════════════════════════════════════════════╗"
+        echo "║ ⚠️  SAVE THIS JWT SECRET TO YOUR PASSWORD MANAGER NOW!       ║"
+        echo "╚════════════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "JWT Secret (for anonymous sessions):"
+        echo "  $JWT_SECRET"
+        echo ""
+        read -p "Press Enter after you've saved the secret securely..." dummy
+
+        kubectl create secret generic backend-secret \
+            --from-literal=jwt-secret="$JWT_SECRET" \
+            -n asocial
+
+        echo ""
+        echo "✅ Backend secret created"
+    fi
+else
+    echo "Generating strong random JWT secret..."
+    JWT_SECRET=$(openssl rand -hex 32)
+
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════════╗"
+    echo "║ ⚠️  SAVE THIS JWT SECRET TO YOUR PASSWORD MANAGER NOW!       ║"
+    echo "╚════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "JWT Secret (for anonymous sessions):"
+    echo "  $JWT_SECRET"
+    echo ""
+    read -p "Press Enter after you've saved the secret securely..." dummy
+
+    kubectl create secret generic backend-secret \
+        --from-literal=jwt-secret="$JWT_SECRET" \
+        -n asocial
+
+    echo ""
+    echo "✅ Backend secret created"
+fi
 
 echo ""
 echo "📋 Verifying secrets..."
@@ -179,11 +256,14 @@ echo ""
 echo "✅ Production secrets setup complete!"
 echo ""
 echo "⚠️  Important next steps:"
-echo "  1. Ensure you've saved the PostgreSQL password securely"
+echo "  1. Ensure you've saved ALL secrets securely:"
+echo "     - PostgreSQL password"
+echo "     - JWT secret"
 echo "  2. Deploy to production: make remote-deploy"
 echo "  3. The init container will run migrations automatically"
 echo ""
 echo "🔒 Security reminder:"
 echo "  - Never commit these credentials to git"
-echo "  - Rotate passwords periodically"
+echo "  - Rotate secrets periodically (JWT secret invalidates anonymous sessions)"
 echo "  - Use different credentials for dev and prod"
+echo "  - If JWT secret is compromised, all anonymous sessions must be regenerated"

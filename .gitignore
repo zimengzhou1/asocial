@@ -5,6 +5,10 @@ docs/LOCAL_DEVELOPMENT.md
 docs/FIREBASE_SETUP.md
 docs/GITHUB_SECRETS.md
 docs/KUBECTL_CONTEXTS.md
+docs/ANONYMOUS_USER_SECURITY.md
+docs/PRODUCTION_HARDENING.md
+docs/RATE_LIMITING_STRATEGY.md
+docs/WEBSOCKET_ARCHITECTURE.md
 **/README.md
 !/README*
 bin/*
@@ -17,3 +21,4 @@ k8s/backend/firebase-secret-prod.yaml
 .env.prod
 *.json  # Firebase service account files
 
+.idea/

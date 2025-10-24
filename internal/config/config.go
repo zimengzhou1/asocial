@@ -44,6 +44,7 @@ type DatabaseConfig struct {
 type AuthConfig struct {
 	FirebaseCredentialsPath string `mapstructure:"firebase_credentials_path"`
 	AppURL                  string `mapstructure:"app_url"`
+	JWTSecret               string `mapstructure:"jwt_secret"`
 }
 
 // Load loads configuration from file and environment variables
@@ -66,6 +67,7 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("database.sslmode", "disable")
 	v.SetDefault("auth.firebase_credentials_path", "")
 	v.SetDefault("auth.app_url", "http://localhost")
+	v.SetDefault("auth.jwt_secret", "")
 
 	// Read config file
 	if configPath != "" {
@@ -94,6 +96,7 @@ func Load(configPath string) (*Config, error) {
 	v.BindEnv("database.sslmode", "DB_SSLMODE")
 	v.BindEnv("auth.firebase_credentials_path", "FIREBASE_CREDENTIALS_PATH")
 	v.BindEnv("auth.app_url", "APP_URL")
+	v.BindEnv("auth.jwt_secret", "JWT_SECRET")
 
 	// Read config file if exists
 	if err := v.ReadInConfig(); err != nil {
